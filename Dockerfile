@@ -17,7 +17,7 @@ COPY requirements.txt /app/requirements.txt
 
 RUN python -m venv /app/venv && \
     /app/venv/bin/pip install --upgrade pip && \
-    /app/venv/bin/pip install --no-cache-dir -r /app/requirements.txt
+    /app/venv/bin/pip install -e .
 
 COPY ./cytubebot/ /app/cytubebot/
 
