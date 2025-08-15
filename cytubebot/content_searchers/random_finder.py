@@ -4,7 +4,7 @@ import random
 import string
 from typing import Tuple
 
-import requests
+from cytubebot.utils import query_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class RandomFinder:
 
         logger.info(f"Finding random with {rand_str}")
         url = f"https://www.youtube.com/results?search_query={rand_str}"
-        resp = requests.get(url, timeout=60)
+        resp = query_endpoint(url)
 
         # Thankfully the video data is stored as json in script tags
         # We just have to pull the json out...

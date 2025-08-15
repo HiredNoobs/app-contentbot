@@ -184,7 +184,7 @@ class ChatBot:
 
         @self._sio.event
         def connect_error(err):
-            logger.info(f"Error: {err}")
+            logger.error(f"Socket connection error: {err}")
             logger.info("Socket connection error. Attempting reconnect.")
             # Is this fine? Or are we doing something recursive?
             socket_url = self._sio.init_socket()

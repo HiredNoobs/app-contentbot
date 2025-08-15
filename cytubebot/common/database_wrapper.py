@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup as bs
 
 import redis
+from cytubebot.utils import query_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class DatabaseWrapper:
             f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
         )
         try:
-            resp = requests.get(channel_url, timeout=60)
+            resp = query_endpoint(channel_url)
             resp.raise_for_status()
         except requests.RequestException:
             logger.exception(f"Failed to retrieve feed for channel_id: {channel_id}")
@@ -157,7 +158,7 @@ class DatabaseWrapper:
 
     def shutdown(self) -> None:
         logger.debug("Shutting down DB remotely...")
-        self._redis.shutdown()
+        self._redis.shutdown(save=True)
 
     @property
     def connection(self) -> redis.Redis:

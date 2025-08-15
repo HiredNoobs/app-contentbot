@@ -4,7 +4,6 @@ import re
 from datetime import datetime
 from typing import List
 
-import requests
 from bs4 import BeautifulSoup as bs
 
 from cytubebot.common.commands import Commands
@@ -13,6 +12,7 @@ from cytubebot.common.exceptions import InvalidTagError
 from cytubebot.common.socket_wrapper import SocketWrapper
 from cytubebot.content_searchers.content_finder import ContentFinder
 from cytubebot.content_searchers.random_finder import RandomFinder
+from cytubebot.utils import query_endpoint
 
 VALID_TAGS: List = os.environ.get("VALID_TAGS", "").split()
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class ChatProcessor:
 
             video_id = curr["id"]
             url = f"https://www.youtube.com/watch?v={video_id}"
-            resp = requests.get(url, timeout=60)
+            resp = query_endpoint(url)
             resp.raise_for_status()
 
             soup = bs(resp.text, "lxml")
@@ -211,11 +211,10 @@ class ChatProcessor:
 
         # Common request settings.
         cookies = {"CONSENT": "YES+1"}
-        timeout = 60
 
         def fetch_data(url: str, pattern: str) -> str | None:
             try:
-                resp = requests.get(url, cookies=cookies, timeout=timeout)
+                resp = query_endpoint(url, cookies=cookies)
                 soup = bs(resp.text, "lxml")
                 script_tag = soup.find("script", string=re.compile("ytInitialData"))
                 if script_tag:

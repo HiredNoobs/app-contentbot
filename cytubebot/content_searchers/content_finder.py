@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup as bs
 
 from cytubebot.common.database_wrapper import DatabaseWrapper
+from cytubebot.utils import query_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class ContentFinder:
             channel = (
                 f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
             )
-            resp = requests.get(channel, timeout=60)
+            resp = query_endpoint(channel)
             page = resp.text
             soup = bs(page, "lxml")
 
