@@ -161,7 +161,8 @@ class ChatBot:
         def queue(resp):
             logger.info(f"queue: {resp}")
 
-            # queueWarn returns the link and not the ID for some reason...
+            # "queue" sometimes returns the ID in ["item"]["media"]["id"]
+            # "queueWarn" returns the link and not the ID for some reason...
             id = resp.get("id", resp.get("link").split("/")[-1])
             if id:
                 self._sio.data.remove_pending(resp["id"])
@@ -172,7 +173,7 @@ class ChatBot:
             logger.info(f"queue err: {resp}")
 
             if resp["msg"] in ACCEPTABLE_ERRORS:
-                id = resp["item"]["media"]["id"]
+                id = resp["id"]
                 self._sio.data.remove_pending(id)
                 self._sio.data.reset_backoff()
             else:
