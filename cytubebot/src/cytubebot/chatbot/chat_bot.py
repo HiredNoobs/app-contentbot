@@ -36,6 +36,7 @@ class ChatBot:
         self._blackjack_bot = BlackjackBot()
 
     def video_queue(self):
+        logger.info("Chatbot ready to process new videos.")
         while True:
             resp = self._db.read_stream("stream:jobs:results")
             if not resp:
