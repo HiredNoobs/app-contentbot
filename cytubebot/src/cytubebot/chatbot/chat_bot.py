@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 
 from cytubebot.blackjack.blackjack_bot import BlackjackBot
 from cytubebot.chatbot.chat_processor import ChatProcessor
-from cytubebot.src.cytubebot.commands import Commands
-from cytubebot.src.cytubebot.database_wrapper import DatabaseWrapper
-from cytubebot.src.cytubebot.socket_wrapper import SocketWrapper
+from cytubebot.commands import Commands
+from cytubebot.database_wrapper import DatabaseWrapper
+from cytubebot.socket_wrapper import SocketWrapper
 
 REQUIRED_PERMISSION_LEVEL = 3
 ACCEPTABLE_ERRORS = [

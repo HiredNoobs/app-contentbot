@@ -5,10 +5,10 @@ from typing import List
 
 from bs4 import BeautifulSoup as bs
 
+from cytubebot.commands import Commands
+from cytubebot.database_wrapper import DatabaseWrapper
 from cytubebot.exceptions import InvalidTagError
-from cytubebot.src.cytubebot.commands import Commands
-from cytubebot.src.cytubebot.database_wrapper import DatabaseWrapper
-from cytubebot.src.cytubebot.socket_wrapper import SocketWrapper
+from cytubebot.socket_wrapper import SocketWrapper
 from cytubebot.utils import query_endpoint
 
 VALID_TAGS: List = os.environ.get("VALID_TAGS", "").split()
