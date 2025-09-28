@@ -4,7 +4,7 @@ import random
 import string
 from typing import Tuple
 
-from cytubebot.utils import query_endpoint
+from worker.utils import query_endpoint
 
 logger = logging.getLogger(__name__)
 

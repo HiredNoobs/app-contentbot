@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 from dataclasses import dataclass, field
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,9 @@ class SIOData:
     _retry_cooloff_period: int = int(os.environ.get("RETRY_COOLOFF_PERIOD", 10))
     _last_retry: datetime.datetime | None = None
     _lock: bool = False
-    _current_media: dict | None = None
+    _current_media: Dict | None = None
     _queue_position: int = -1
-    _users: dict = field(default_factory=dict)
+    _users: Dict = field(default_factory=dict)
 
     @property
     def queue_resp(self) -> str | None:
@@ -53,7 +54,7 @@ class SIOData:
         return self._current_media
 
     @current_media.setter
-    def current_media(self, value: dict) -> None:
+    def current_media(self, value: Dict) -> None:
         self._current_media = value
 
     @property
@@ -69,7 +70,7 @@ class SIOData:
         return self._users
 
     @users.setter
-    def users(self, value: dict) -> None:
+    def users(self, value: Dict) -> None:
         self._users = value
 
     @property
@@ -137,7 +138,7 @@ class SIOData:
         )
         logger.debug(f"Current backoff increased to {self._current_backoff}")
 
-    def add_or_update_user(self, user_id: str, user_info: dict) -> None:
+    def add_or_update_user(self, user_id: str, user_info: Dict) -> None:
         """
         Add a new user or update an existing user's information in the users dictionary.
 

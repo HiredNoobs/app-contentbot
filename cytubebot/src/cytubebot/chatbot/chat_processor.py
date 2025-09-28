@@ -1,17 +1,14 @@
 import logging
 import os
 import re
-from datetime import datetime
 from typing import List
 
 from bs4 import BeautifulSoup as bs
 
-from cytubebot.common.commands import Commands
-from cytubebot.common.database_wrapper import DatabaseWrapper
-from cytubebot.common.exceptions import InvalidTagError
-from cytubebot.common.socket_wrapper import SocketWrapper
-from cytubebot.content_searchers.content_finder import ContentFinder
-from cytubebot.content_searchers.random_finder import RandomFinder
+from cytubebot.exceptions import InvalidTagError
+from cytubebot.src.cytubebot.commands import Commands
+from cytubebot.src.cytubebot.database_wrapper import DatabaseWrapper
+from cytubebot.src.cytubebot.socket_wrapper import SocketWrapper
 from cytubebot.utils import query_endpoint
 
 VALID_TAGS: List = os.environ.get("VALID_TAGS", "").split()
@@ -28,8 +25,6 @@ class ChatProcessor:
     def __init__(self) -> None:
         self._sio = SocketWrapper("", "")
         self._db = DatabaseWrapper("", 0)
-        self._random_finder = RandomFinder()
-        self._content_finder = ContentFinder()
 
     def process_chat_command(self, command, args, allow_force=False) -> None:
         if self._sio.data.lock and not (allow_force and args and args[0] == "--force"):
@@ -125,44 +120,10 @@ class ChatProcessor:
         )
         self._sio.send_chat_msg(msg)
 
-    def _handle_content(self, tag) -> None:
-        self._sio.send_chat_msg("Searching for content...")
-
-        content = self._content_finder.find_content(tag)
-
-        if len(content) == 0:
-            self._sio.send_chat_msg("No content to add.")
-            return
-
-        self._sio.send_chat_msg(f"Adding {len(content)} videos.")
-
-        for video in content:
-            logger.debug(f"Processing {video}")
-
-            channel_id = video["channel_id"]
-            new_dt = video["datetime"]
-            video_id = video["video_id"]
-
-            self._sio.add_video_to_queue(video_id)
-            self._db.update_datetime(channel_id, str(new_dt))
-
-        self._sio.send_chat_msg("Finished adding content.")
-
-    def _handle_add_christmas_videos(self) -> None:
-        now = datetime.now()
-        if now.day != 25 and now.month != 12:
-            self._sio.send_chat_msg("It's not Christmas :(")
-            return
-
-        xmas_vids = [
-            "3KvWwJ6sh5s",
-            "4JDjkUswzvQ",
-            "vmrMuwcpKkY",
-            "rYUMmIBWm",
-            "Wy1lK-MDZJU",
-        ]
-        for video_id in xmas_vids:
-            self._sio.add_video_to_queue(video_id)
+    def _handle_content(self, tag: str) -> None:
+        self._sio.send_chat_msg("Requesting content.")
+        data = {"tag": tag}
+        self._db.add_to_stream("stream:jobs:pending", data)
 
     def _handle_random(self, command, args) -> None:
         rand_id = None

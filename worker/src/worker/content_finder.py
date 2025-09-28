@@ -5,8 +5,8 @@ from operator import itemgetter
 import requests
 from bs4 import BeautifulSoup as bs
 
-from cytubebot.common.database_wrapper import DatabaseWrapper
-from cytubebot.utils import query_endpoint
+from worker.database_wrapper import DatabaseWrapper
+from worker.utils import query_endpoint
 
 logger = logging.getLogger(__name__)
 

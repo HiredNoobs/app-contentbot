@@ -1,11 +1,12 @@
 import json
 import logging
 import threading
+from typing import Dict
 
+import redis
 import requests
 from bs4 import BeautifulSoup as bs
 
-import redis
 from cytubebot.utils import query_endpoint
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class DatabaseWrapper:
                 instance._redis = redis.Redis(
                     host=host, port=port, db=0, decode_responses=True
                 )
+                instance._create_consumer_group()
                 cls._instance = instance
         return cls._instance
 
@@ -50,13 +52,36 @@ class DatabaseWrapper:
                 logger.exception(f"Failed to decode JSON data for key: {key}")
         return {}
 
-    def _save_channel_data(self, channel_id: str, data: dict) -> None:
+    def _save_channel_data(self, channel_id: str, data: Dict) -> None:
         key = self._make_key(channel_id)
         logger.debug(f"Updating {key} with {data=}")
         try:
             self._redis.set(key, json.dumps(data))
         except Exception:
             logger.exception(f"Failed to save data for key: {key}")
+
+    def _create_consumer_group(self) -> None:
+        try:
+            self._redis.xgroup_create(
+                "stream:jobs:results", "socketio", id="0", mkstream=True
+            )
+        except redis.ResponseError:
+            pass
+
+    def add_to_stream(self, stream: str, data: Dict) -> None:
+        self._redis.xadd(stream, data)
+
+    def read_stream(self, stream: str) -> Dict:
+        return self._redis.xreadgroup(
+            groupname="socketio",
+            consumername="contentbot",
+            streams={stream: ">"},
+            count=10,
+            block=0,
+        )
+
+    def ack_stream_message(self, stream: str, id: str) -> None:
+        self._redis.xack(stream, "socketio", id)
 
     def update_datetime(self, channel_id: str, new_dt: str) -> None:
         data = self._load_channel_data(channel_id)
@@ -157,7 +182,7 @@ class DatabaseWrapper:
         logger.info(f"Removed tags {tags_to_remove} from channel {channel_id}")
 
     def shutdown(self) -> None:
-        logger.debug("Shutting down DB remotely...")
+        logger.info("Shutting down DB remotely...")
         self._redis.shutdown(save=True)
 
     @property

@@ -1,9 +1,10 @@
 import os
+import threading
 
 from cytubebot.chatbot.chat_bot import ChatBot
-from cytubebot.common.database_wrapper import DatabaseWrapper
-from cytubebot.common.exceptions import MissingEnvVar
-from cytubebot.common.socket_wrapper import SocketWrapper
+from cytubebot.exceptions import MissingEnvVar
+from cytubebot.src.cytubebot.database_wrapper import DatabaseWrapper
+from cytubebot.src.cytubebot.socket_wrapper import SocketWrapper
 
 
 def main() -> None:
@@ -23,6 +24,7 @@ def main() -> None:
     DatabaseWrapper(db_host, db_port)
 
     bot = ChatBot(channel_name, username, password)
+    threading.Thread(target=bot.video_queue, daemon=True).start()
     bot.listen()
 
 

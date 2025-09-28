@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 from cytubebot.blackjack.blackjack import BlackjackGame
-from cytubebot.common.socket_wrapper import SocketWrapper
+from cytubebot.src.cytubebot.socket_wrapper import SocketWrapper
 
 logger = logging.getLogger(__name__)
 

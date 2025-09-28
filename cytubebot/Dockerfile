@@ -19,7 +19,7 @@ RUN python -m venv /app/venv && \
     /app/venv/bin/pip install --upgrade pip && \
     /app/venv/bin/pip install -e .
 
-COPY ./cytubebot/ /app/cytubebot/
+COPY ./src/cytubebot/ /app/cytubebot/
 
 #################################################
 # Build deployable container

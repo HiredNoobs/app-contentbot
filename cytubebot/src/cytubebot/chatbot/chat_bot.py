@@ -4,8 +4,9 @@ from datetime import datetime, timedelta
 
 from cytubebot.blackjack.blackjack_bot import BlackjackBot
 from cytubebot.chatbot.chat_processor import ChatProcessor
-from cytubebot.common.commands import Commands
-from cytubebot.common.socket_wrapper import SocketWrapper
+from cytubebot.src.cytubebot.commands import Commands
+from cytubebot.src.cytubebot.database_wrapper import DatabaseWrapper
+from cytubebot.src.cytubebot.socket_wrapper import SocketWrapper
 
 REQUIRED_PERMISSION_LEVEL = 3
 ACCEPTABLE_ERRORS = [
@@ -30,8 +31,26 @@ class ChatBot:
         self._password = password
 
         self._sio = SocketWrapper("", "")
+        self._db = DatabaseWrapper("", 0)
         self._chat_processor = ChatProcessor()
         self._blackjack_bot = BlackjackBot()
+
+    def video_queue(self):
+        while True:
+            resp = self._db.read_stream("stream:jobs:results")
+            if not resp:
+                continue
+
+            _, messages = resp[0]
+            for msg_id, data in messages:
+                logger.debug("Processing content from stream: %s - %s", msg_id, data)
+                video_id = data["video_id"]
+
+                try:
+                    self._sio.add_video_to_queue(video_id)
+                    self._db.ack_stream_message("stream:jobs:results", msg_id)
+                except Exception:
+                    logger.error("Failed to add %s to queue.", video_id)
 
     def listen(self) -> None:
         """

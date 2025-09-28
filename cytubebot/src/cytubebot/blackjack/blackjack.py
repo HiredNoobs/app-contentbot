@@ -2,8 +2,8 @@ from typing import Dict, List
 
 from cytubebot.blackjack.deck import Deck
 from cytubebot.blackjack.player import Player
-from cytubebot.common.exceptions import InvalidBlackjackState
-from cytubebot.common.socket_wrapper import SocketWrapper
+from cytubebot.exceptions import InvalidBlackjackState
+from cytubebot.src.cytubebot.socket_wrapper import SocketWrapper
 
 
 class BlackjackGame:
