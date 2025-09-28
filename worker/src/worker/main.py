@@ -1,8 +1,11 @@
+import logging
 import os
 
 from worker.content_finder import ContentFinder
 from worker.database_wrapper import DatabaseWrapper
 from worker.exceptions import MissingEnvVar
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -15,6 +18,8 @@ def main() -> None:
     db = DatabaseWrapper(db_host, db_port)
 
     content_finder = ContentFinder()
+
+    logger.info("Worker ready.")
 
     while True:
         resp = db.read_stream("stream:jobs:pending")
