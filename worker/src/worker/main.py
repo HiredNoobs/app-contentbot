@@ -39,7 +39,7 @@ def main() -> None:
                     new_dt = c.pop("datetime")
                     db.add_to_stream("stream:jobs:results", c)
                 if new_dt:
-                    db.update_datetime(channel_id, new_dt)
+                    db.update_datetime(channel_id, str(new_dt))
 
             db.ack_stream_message("stream:jobs:pending", msg_id)
 
