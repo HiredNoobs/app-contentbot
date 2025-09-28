@@ -40,26 +40,27 @@ class ContentFinder:
         )
         resp = query_endpoint(channel_url)
         page = resp.text
-        soup = bs(page, "lxml")
+        soup = bs(page, "lxml-xml")
 
         for item in soup.find_all("entry"):
-            published = item.find_all("published")[0].text
+            published = item.find("published").text
             published = datetime.fromisoformat(published)
 
             if published < dt or published == dt:
                 logger.info(f"No more new videos for {name}")
                 break
 
-            title = item.find_all("title")[0].text.casefold()
-            video_id = item.find_all("yt:videoid")[0].text
+            title = item.find("title").text.casefold()
+            video_id = item.find("yt:videoid").text
 
             if not self._is_short(title, video_id):
-                c = {
-                    "channel_id": channel_id,
-                    "datetime": published,
-                    "video_id": video_id,
-                }
-                content.append(c)
+                content.append(
+                    {
+                        "channel_id": channel_id,
+                        "datetime": published,
+                        "video_id": video_id,
+                    }
+                )
 
         content = sorted(content, key=itemgetter("datetime"))
 
