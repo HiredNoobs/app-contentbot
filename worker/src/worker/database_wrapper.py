@@ -72,13 +72,14 @@ class DatabaseWrapper:
         return self._redis.xreadgroup(
             groupname="workers",
             consumername="worker",
-            streams={stream: ">"},
+            streams={stream: "0"},
             count=1,
             block=0,
         )
 
     def ack_stream_message(self, stream: str, id: str) -> None:
         self._redis.xack(stream, "workers", id)
+        self._redis.xdel(stream, id)
 
     def update_datetime(self, channel_id: str, new_dt: str) -> None:
         data = self._load_channel_data(channel_id)

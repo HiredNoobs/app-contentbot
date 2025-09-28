@@ -75,13 +75,14 @@ class DatabaseWrapper:
         return self._redis.xreadgroup(
             groupname="socketio",
             consumername="contentbot",
-            streams={stream: ">"},
+            streams={stream: "0"},
             count=10,
             block=0,
         )
 
     def ack_stream_message(self, stream: str, id: str) -> None:
         self._redis.xack(stream, "socketio", id)
+        self._redis.xdel(stream, id)
 
     def update_datetime(self, channel_id: str, new_dt: str) -> None:
         data = self._load_channel_data(channel_id)
