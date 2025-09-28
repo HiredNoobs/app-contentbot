@@ -7,6 +7,12 @@ FROM ${PYTHON_IMAGE} AS build-stage
 
 WORKDIR /app
 
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+      gcc \
+      build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml /app/pyproject.toml
 
 RUN python -m venv /app/venv && \
