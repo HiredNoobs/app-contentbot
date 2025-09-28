@@ -72,13 +72,22 @@ class DatabaseWrapper:
         self._redis.xadd(stream, data)
 
     def read_stream(self, stream: str) -> Dict:
-        return self._redis.xreadgroup(
+        pend = self._redis.xpending(stream, "socketio")["pending"]
+        pending_msgs = []
+        if pend:
+            pending_msgs = self._redis.xreadgroup(
+                "socketio", "contentbot", {stream: "0"}, count=pend, block=0
+            )
+
+        new_messages = self._redis.xreadgroup(
             groupname="socketio",
             consumername="contentbot",
-            streams={stream: "0"},
-            count=10,
+            streams={stream: ">"},
+            count=1,
             block=0,
         )
+
+        return pending_msgs + new_messages
 
     def ack_stream_message(self, stream: str, id: str) -> None:
         self._redis.xack(stream, "socketio", id)
