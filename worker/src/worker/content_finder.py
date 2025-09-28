@@ -43,7 +43,6 @@ class ContentFinder:
         soup = bs(page, "lxml-xml")
 
         for entry in soup.find_all("entry"):
-            logger.debug("Parsing %s", entry)
             published = entry.find("published").text
             published = datetime.fromisoformat(published)
 
