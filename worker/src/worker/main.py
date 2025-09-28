@@ -33,10 +33,12 @@ def main() -> None:
             for channel in channels:
                 content = content_finder.find_content(channel)
 
+                new_dt = None
                 for c in content:
                     channel_id = c["channel_id"]
-                    new_dt = c["datetime"]
+                    new_dt = c.pop("datetime")
                     db.add_to_stream("stream:jobs:results", c)
+                if new_dt:
                     db.update_datetime(channel_id, new_dt)
 
             db.ack_stream_message("stream:jobs:pending", msg_id)
