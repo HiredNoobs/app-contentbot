@@ -29,13 +29,15 @@ def main() -> None:
         _, messages = resp[0]
         for msg_id, data in messages:
             tag = data["tag"]
-            content = content_finder.find_content(tag=tag)
+            channels = db.get_channels(tag)
+            for channel in channels:
+                content = content_finder.find_content(channel)
 
-            for c in content:
-                channel_id = c["channel_id"]
-                new_dt = c["datetime"]
-                db.add_to_stream("stream:jobs:results", c)
-                db.update_datetime(channel_id, new_dt)
+                for c in content:
+                    channel_id = c["channel_id"]
+                    new_dt = c["datetime"]
+                    db.add_to_stream("stream:jobs:results", c)
+                    db.update_datetime(channel_id, new_dt)
 
             db.ack_stream_message("stream:jobs:pending", msg_id)
 
