@@ -21,7 +21,7 @@ class SIOData:
     _lock: bool = False
     _current_media: Dict | None = None
     _users: Dict = field(default_factory=dict)
-    _pending: List = []
+    _pending: List = field(default_factory=list)
 
     @property
     def lock(self) -> bool:
