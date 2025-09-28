@@ -43,7 +43,7 @@ class ChatProcessor:
     def _process_command(self, command, args) -> None:
         match command:
             case "content":
-                tag = args[0].upper() if args else None
+                tag = args[0].upper() if args else ""
                 self._handle_content(tag)
             case "random" | "random_word":
                 self._handle_random(command, args)
@@ -55,8 +55,6 @@ class ChatProcessor:
                 self._handle_remove_user(args)
             case "add_tags" | "remove_tags":
                 self._handle_tags(command, args)
-            case "christmas" | "xmas":
-                self._handle_add_christmas_videos()
             case "help":
                 self._handle_help()
             case "kill":
