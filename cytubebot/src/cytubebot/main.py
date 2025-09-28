@@ -24,8 +24,9 @@ def main() -> None:
     DatabaseWrapper(db_host, db_port)
 
     bot = ChatBot(channel_name, username, password)
-    threading.Thread(target=bot.video_queue, daemon=True).start()
     bot.listen()
+    threading.Thread(target=bot.video_queue, daemon=True).start()
+    bot._sio.wait()
 
 
 if __name__ == "__main__":

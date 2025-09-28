@@ -216,4 +216,3 @@ class ChatBot:
 
         socket_url = self._sio.init_socket()
         self._sio.connect(socket_url)
-        self._sio.wait()
