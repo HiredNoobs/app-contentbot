@@ -39,6 +39,7 @@ class ChatBot:
         logger.info("Chatbot ready to process new videos.")
         while True:
             resp = self._db.read_stream("stream:jobs:results")
+            logger.debug("video_queue thread processing %s", resp)
             if not resp:
                 continue
 
