@@ -42,16 +42,19 @@ class ContentFinder:
         page = resp.text
         soup = bs(page, "lxml-xml")
 
-        for item in soup.find_all("entry"):
-            published = item.find("published").text
+        for entry in soup.find_all("entry"):
+            logger.debug("Parsing %s", entry)
+            published = entry.find("published").text
             published = datetime.fromisoformat(published)
 
             if published < dt or published == dt:
                 logger.info(f"No more new videos for {name}")
                 break
 
-            title = item.find("title").text.casefold()
-            video_id = item.find("yt:videoid").text
+            title = entry.find("title").text.casefold()
+            video_id = entry.find("yt:videoId").text
+            if not video_id:
+                continue
 
             if not self._is_short(title, video_id):
                 content.append(
