@@ -3,7 +3,7 @@ name = "content-finder"
 version = "1.0.0"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies=["requests==2.32.5", "beautifulsoup4==4.13.5", "redis==6.4.0"]
+dependencies=["requests==2.32.5", "beautifulsoup4==4.13.5", "lxml==6.0.2", "redis==6.4.0"]
 
 [project.optional-dependencies]
 dev = ["black", "isort", "flake8"]
