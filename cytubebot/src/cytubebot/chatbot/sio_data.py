@@ -79,7 +79,13 @@ class SIOData:
         self._pending.append(id)
 
     def remove_pending(self, id: str) -> None:
-        self._pending.remove(id)
+        # It's possible that someone else updates the queue
+        # while the bot is running so we could reasonably
+        # get an ID that isn't in pending - this isn't a big deal.
+        try:
+            self._pending.remove(id)
+        except ValueError:
+            pass
 
     def can_retry(self) -> bool:
         """
