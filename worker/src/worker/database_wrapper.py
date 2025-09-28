@@ -4,7 +4,6 @@ import threading
 from typing import Dict
 
 import redis
-from bs4 import BeautifulSoup as bs
 
 logger = logging.getLogger(__name__)
 
