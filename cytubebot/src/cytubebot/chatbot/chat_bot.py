@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from datetime import datetime, timedelta
 
 from cytubebot.blackjack.blackjack_bot import BlackjackBot
@@ -46,9 +47,13 @@ class ChatBot:
             for msg_id, data in messages:
                 logger.debug("Processing content from stream: %s - %s", msg_id, data)
                 video_id = data["video_id"]
+                self._sio.data.add_pending(video_id)
 
                 try:
-                    self._sio.add_video_to_queue(video_id)
+                    while video_id in self._sio.data.pending:
+                        if self._sio.data.can_retry:
+                            self._sio.add_video_to_queue(video_id)
+                            time.sleep(self._sio.data.current_backoff)
                     self._db.ack_stream_message("stream:jobs:results", msg_id)
                 except Exception:
                     logger.error("Failed to add %s to queue.", video_id)
@@ -155,52 +160,28 @@ class ChatBot:
         @self._sio.on("queueWarn")
         def queue(resp):
             logger.info(f"queue: {resp}")
-            self._sio.data.queue_err = False
-            self._sio.data.queue_resp = resp
-            self._sio.data.reset_backoff()
+
+            # queueWarn returns the link and not the ID for some reason...
+            id = resp.get("id", resp.get("link").split("/")[-1])
+            if id:
+                self._sio.data.remove_pending(resp["id"])
+                self._sio.data.reset_backoff()
 
         @self._sio.on("queueFail")
         def queue_err(resp):
-            logger.debug(f"queue err: {resp}")
+            logger.info(f"queue err: {resp}")
 
             if resp["msg"] in ACCEPTABLE_ERRORS:
-                logger.debug(
-                    f"Skipping '{resp['msg']}' due to being an acceptable error for {resp['id']}."
-                )
-                self._sio.data.queue_err = False
-                self._sio.data.queue_resp = resp
+                id = resp["item"]["media"]["id"]
+                self._sio.data.remove_pending(id)
                 self._sio.data.reset_backoff()
-                return
-
-            self._sio.data.queue_err = True
-            delay = self._sio.data.current_backoff
-
-            try:
-                video_id = resp["id"]
-
-                if not self._sio.data.can_retry():
-                    self._sio.send_chat_msg(
-                        f"Failed to add {video_id}, retrying in {delay} seconds."
-                    )
-                    self._sio.data.last_retry = datetime.now()
-                    self._sio.sleep(delay)
-                    self._sio.data.increase_backoff()
-                else:
-                    self._sio.data.last_retry = datetime.now()
-
-                self._sio.add_video_to_queue(video_id, wait=False)
-            except KeyError:
-                logger.info("queue err response doesn't contain key 'id'")
+            else:
+                self._sio.data.increase_backoff()
 
         @self._sio.on("changeMedia")
         def change_media(resp):
             logger.info(f"change_media: {resp=}")
             self._sio.data.current_media = resp
-
-        @self._sio.on("setCurrent")
-        def set_current(resp):
-            logger.info(f"set_current: {resp=}")
-            self._sio.data.queue_position = resp
 
         @self._sio.event
         def connect_error(err):

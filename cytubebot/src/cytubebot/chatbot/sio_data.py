@@ -2,7 +2,7 @@ import datetime
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -13,33 +13,15 @@ class SIOData:
     Non socket specific data class to share between classes more easily.
     """
 
-    _queue_resp: str | None = None
-    _queue_err: bool = False
-    _current_backoff: int = int(os.environ.get("BASE_RETRY_BACKOFF", 4))
+    _current_backoff: int = int(os.environ.get("BASE_RETRY_BACKOFF", 2))
     _backoff_factor: int = int(os.environ.get("RETRY_BACKOFF_FACTOR", 2))
     _max_backoff: int = int(os.environ.get("MAX_RETRY_BACKOFF", 20))
     _retry_cooloff_period: int = int(os.environ.get("RETRY_COOLOFF_PERIOD", 10))
     _last_retry: datetime.datetime | None = None
     _lock: bool = False
     _current_media: Dict | None = None
-    _queue_position: int = -1
     _users: Dict = field(default_factory=dict)
-
-    @property
-    def queue_resp(self) -> str | None:
-        return self._queue_resp
-
-    @queue_resp.setter
-    def queue_resp(self, value: str) -> None:
-        self._queue_resp = value
-
-    @property
-    def queue_err(self) -> bool:
-        return self._queue_err
-
-    @queue_err.setter
-    def queue_err(self, value: bool) -> None:
-        self._queue_err = value
+    _pending: List = []
 
     @property
     def lock(self) -> bool:
@@ -56,14 +38,6 @@ class SIOData:
     @current_media.setter
     def current_media(self, value: Dict) -> None:
         self._current_media = value
-
-    @property
-    def queue_position(self) -> int:
-        return self._queue_position
-
-    @queue_position.setter
-    def queue_position(self, value: int) -> None:
-        self._queue_position = value
 
     @property
     def users(self) -> dict:
@@ -97,6 +71,16 @@ class SIOData:
     def last_retry(self, value: datetime.datetime) -> None:
         self._last_retry = value
 
+    @property
+    def pending(self) -> List:
+        return self._pending
+
+    def add_pending(self, id: str) -> None:
+        self._pending.append(id)
+
+    def remove_pending(self, id: str) -> None:
+        self._pending.remove(id)
+
     def can_retry(self) -> bool:
         """
         Check if sufficient time has passed since the last retry based on the current backoff delay.
@@ -125,7 +109,7 @@ class SIOData:
 
         self._current_backoff = max(
             self._current_backoff - self._backoff_factor,
-            int(os.environ.get("BASE_RETRY_BACKOFF", 4)),
+            int(os.environ.get("BASE_RETRY_BACKOFF", 2)),
         )
         logger.debug(f"Backoff reduced to {self._current_backoff}")
 
