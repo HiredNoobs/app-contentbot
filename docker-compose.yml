@@ -35,7 +35,7 @@ services:
         condition: service_healthy
     restart: on-failure
   content-finder:
-    container_name: content-finder.chatbot
+    container_name: content-finder.worker
     build:
       context: ./worker
       dockerfile: Dockerfile
