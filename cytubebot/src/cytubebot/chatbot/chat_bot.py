@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta
+from typing import Dict
 
 from cytubebot.blackjack.blackjack_bot import BlackjackBot
 from cytubebot.chatbot.chat_processor import ChatProcessor
@@ -69,6 +70,25 @@ class ChatBot:
         ) -> bool:
             return self._sio.data.users.get(username, 0) >= required
 
+        def extract_id(resp: Dict) -> str:
+            if "id" in resp and resp["id"]:
+                return resp["id"]
+
+            link = resp.get("link")
+            if isinstance(link, str) and link.strip():
+                parts = link.rstrip("/").split("/")
+                if parts:
+                    return parts[-1]
+
+            try:
+                nested = resp["item"]["media"]["id"]
+                if nested:
+                    return nested
+            except (KeyError, TypeError):
+                pass
+
+            raise KeyError(f"No valid ID found in response: {resp}")
+
         standard_commands = set(Commands.STANDARD_COMMANDS.value.keys())
         admin_commands = set(Commands.ADMIN_COMMANDS.value.keys())
         blackjack_commands = set(Commands.BLACKJACK_COMMANDS.value.keys())
@@ -95,7 +115,7 @@ class ChatBot:
             for user in resp:
                 self._sio.data.add_or_update_user(user["name"], user["rank"])
 
-        @self._sio.on("addUser")  # User joins channel
+        @self._sio.on("addUser")
         @self._sio.on("setUserRank")
         def user_add(resp):
             self._sio.data.add_or_update_user(resp["name"], resp["rank"])
@@ -163,7 +183,7 @@ class ChatBot:
 
             # "queue" sometimes returns the ID in ["item"]["media"]["id"]
             # "queueWarn" returns the link and not the ID for some reason...
-            id = resp.get("id", resp.get("link").split("/")[-1])
+            id = extract_id(resp)
             if id:
                 self._sio.data.remove_pending(resp["id"])
                 self._sio.data.reset_backoff()
@@ -173,7 +193,7 @@ class ChatBot:
             logger.info(f"queue err: {resp}")
 
             if resp["msg"] in ACCEPTABLE_ERRORS:
-                id = resp["id"]
+                id = extract_id(resp)
                 self._sio.data.remove_pending(id)
                 self._sio.data.reset_backoff()
             else:
