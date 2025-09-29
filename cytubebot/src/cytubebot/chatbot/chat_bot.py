@@ -185,7 +185,7 @@ class ChatBot:
             # "queueWarn" returns the link and not the ID for some reason...
             id = extract_id(resp)
             if id:
-                self._sio.data.remove_pending(resp["id"])
+                self._sio.data.remove_pending(id)
                 self._sio.data.reset_backoff()
 
         @self._sio.on("queueFail")
