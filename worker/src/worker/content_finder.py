@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from operator import itemgetter
 from typing import Dict
 
 import requests
@@ -63,8 +62,6 @@ class ContentFinder:
                         "video_id": video_id,
                     }
                 )
-
-        content = sorted(content, key=itemgetter("datetime"))
 
         return content
 

@@ -1,5 +1,6 @@
 import logging
 import os
+from operator import itemgetter
 
 from worker.content_finder import ContentFinder
 from worker.database_wrapper import DatabaseWrapper
@@ -30,16 +31,21 @@ def main() -> None:
         for msg_id, data in messages:
             tag = data["tag"]
             channels = db.get_channels(tag)
+            content = []
             for channel in channels:
-                content = content_finder.find_content(channel)
+                content.extend(content_finder.find_content(channel))
 
-                new_dt = None
-                for c in content:
-                    channel_id = c["channel_id"]
-                    new_dt = c.pop("datetime")
-                    db.add_to_stream("stream:jobs:results", c)
-                if new_dt:
-                    db.update_datetime(channel_id, str(new_dt))
+            content = sorted(content, key=itemgetter("datetime"))
+
+            for c in content:
+                channel_id = c["channel_id"]
+                new_dt = str(c.pop("datetime"))
+                db.add_to_stream("stream:jobs:results", c)
+
+                # Having the update here will write to Redis for every
+                # video from a given channel. This does keep Redis
+                # accurate if the worker crashes half way through.
+                db.update_datetime(channel_id, new_dt)
 
             db.ack_stream_message("stream:jobs:pending", msg_id)
 
