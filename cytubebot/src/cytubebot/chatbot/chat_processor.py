@@ -124,6 +124,8 @@ class ChatProcessor:
         self._db.add_to_stream("stream:jobs:pending", data)
 
     def _handle_random(self, command, args) -> None:
+        # This is mainly here to avoid linter issues in the pipeline...
+        logger.debug("command=%s, args=%s", command, args)
         msg = "Random is currently disabled..."
         self._sio.send_chat_msg(msg)
         # rand_id = None

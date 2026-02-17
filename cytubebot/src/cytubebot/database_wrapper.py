@@ -1,9 +1,7 @@
-# type: ignore
-# ^ For Mypy to ignore this file, as mypy is annoying with bs4
 import json
 import logging
 import threading
-from typing import Dict
+from typing import Any, Dict, List
 
 import redis
 import requests
@@ -74,10 +72,10 @@ class DatabaseWrapper:
         self._redis.xadd(stream, data)
 
     def read_stream(self, stream: str) -> Dict:
-        pend = self._redis.xpending(stream, "socketio")["pending"]
-        pending_msgs = []
+        pend = self._redis.xpending(stream, "socketio")["pending"]  # type: ignore
+        pending_msgs: List[Any] = []
         if pend:
-            pending_msgs = self._redis.xreadgroup(
+            pending_msgs = self._redis.xreadgroup(  # type: ignore
                 "socketio", "contentbot", {stream: "0"}, count=pend, block=0
             )
 
@@ -89,7 +87,7 @@ class DatabaseWrapper:
             block=0,
         )
 
-        return pending_msgs + new_messages
+        return pending_msgs + new_messages  # type: ignore
 
     def ack_stream_message(self, stream: str, id: str) -> None:
         self._redis.xack(stream, "socketio", id)
@@ -140,7 +138,7 @@ class DatabaseWrapper:
         soup = bs(resp.text, "lxml")
         try:
             entry = soup.find_all("entry")[0]
-            published = entry.find_all("published")[0].text
+            published = entry.find_all("published")[0].text  # type: ignore
         except (IndexError, AttributeError):
             logger.error(f"Failed to parse published date for channel_id: {channel_id}")
             return
