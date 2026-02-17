@@ -1,3 +1,5 @@
+# type: ignore
+# ^ For Mypy to ignore this file, as mypy is annoying with bs4
 import json
 import logging
 import threading
