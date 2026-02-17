@@ -124,24 +124,26 @@ class ChatProcessor:
         self._db.add_to_stream("stream:jobs:pending", data)
 
     def _handle_random(self, command, args) -> None:
-        rand_id = None
+        msg = "Random is currently disabled..."
+        self._sio.send_chat_msg(msg)
+        # rand_id = None
 
-        if command == "random_word":
-            rand_id, search_str = self._random_finder.find_random(use_dict=True)
-        elif command == "random":
-            try:
-                size = int(args[0]) if args else 3
-            except ValueError:
-                size = 3
+        # if command == "random_word":
+        #     rand_id, search_str = self._random_finder.find_random(use_dict=True)
+        # elif command == "random":
+        #     try:
+        #         size = int(args[0]) if args else 3
+        #     except ValueError:
+        #         size = 3
 
-            rand_id, search_str = self._random_finder.find_random(size)
+        #     rand_id, search_str = self._random_finder.find_random(size)
 
-        if rand_id:
-            self._sio.add_video_to_queue(rand_id)
-            self._sio.send_chat_msg(f"Searched: {search_str}, added: {rand_id}")
-        else:
-            msg = "Found no random videos.. Try again. If giving arg over 5, try reducing."
-            self._sio.send_chat_msg(msg)
+        # if rand_id:
+        #     self._sio.add_video_to_queue(rand_id)
+        #     self._sio.send_chat_msg(f"Searched: {search_str}, added: {rand_id}")
+        # else:
+        #     msg = "Found no random videos.. Try again. If giving arg over 5, try reducing."
+        #     self._sio.send_chat_msg(msg)
 
     def _add_tags(self, args) -> None:
         channel_id = args[0]
