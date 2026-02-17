@@ -1,6 +1,6 @@
 import pytest
 
-from cytubebot.blackjack.deck import Deck
+from cytubebot.src.cytubebot.blackjack.deck import Deck
 
 
 class TestDeck:

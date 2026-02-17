@@ -1,9 +1,9 @@
 import pytest
 
-from cytubebot.blackjack.blackjack import BlackjackGame
-from cytubebot.blackjack.deck import Deck
-from cytubebot.blackjack.player import Player
-from cytubebot.common.exceptions import InvalidBlackjackState
+from cytubebot.src.cytubebot.blackjack.blackjack import BlackjackGame
+from cytubebot.src.cytubebot.blackjack.deck import Deck
+from cytubebot.src.cytubebot.blackjack.player import Player
+from cytubebot.src.cytubebot.exceptions import InvalidBlackjackState
 
 
 # fake socket to capture messages from the game.
