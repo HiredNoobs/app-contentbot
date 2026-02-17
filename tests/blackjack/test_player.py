@@ -1,5 +1,5 @@
-from cytubebot.src.cytubebot.blackjack.deck import Deck
-from cytubebot.src.cytubebot.blackjack.player import Player
+from cytubebot.blackjack.deck import Deck
+from cytubebot.blackjack.player import Player
 
 
 class TestPlayer:

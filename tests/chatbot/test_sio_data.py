@@ -1,6 +1,6 @@
 import datetime
 
-from cytubebot.src.cytubebot.chatbot.sio_data import SIOData
+from cytubebot.chatbot.sio_data import SIOData
 
 
 class TestSIOData:

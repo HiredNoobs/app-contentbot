@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 import pytest
 import requests
 
-from worker.src.worker.random_finder import RandomFinder
+from worker.random_finder import RandomFinder
 
 
 class FakeResponse:
