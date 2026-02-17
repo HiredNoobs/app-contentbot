@@ -1,13 +1,12 @@
-import datetime
 import logging
 import os
 import threading
 from textwrap import wrap
 
-import requests
 import socketio  # type: ignore
 
 from cytubebot.chatbot.sio_data import SIOData
+from cytubebot.utils import query_endpoint
 
 MSG_LIMIT = int(os.environ.get("CYTUBE_MSG_LIMIT", "80"))
 logger = logging.getLogger(__name__)
@@ -43,7 +42,7 @@ class SocketWrapper:
             A str containing the URL of the socket server.
         """
         socket_conf = f"{self._url}/socketconfig/{self._channel_name}.json"
-        resp = requests.get(socket_conf, timeout=60)
+        resp = query_endpoint(socket_conf)
         logger.info(f"resp: {resp.status_code} - {resp.reason}")
         servers = resp.json()
         socket_url = ""
@@ -70,34 +69,15 @@ class SocketWrapper:
         for msg in msgs:
             self._socketio.emit("chatMsg", {"msg": msg})
 
-    def add_video_to_queue(self, id: str, wait: bool = True) -> None:
+    def add_video_to_queue(self, id: str) -> None:
         """
-        Add YouTube video to queue by video ID and wait until
-        it's successfully added.
+        Add YouTube video to queue by video ID.
         """
-        logger.debug(f"Adding {id} to queue, and {wait=}.")
+        logger.debug(f"Adding {id} to queue.")
         self._socketio.emit(
             "queue",
             {"id": id, "type": "yt", "pos": "end", "temp": True},
         )
-
-        if not wait:
-            return
-
-        logger.debug(
-            f"Starting to wait for content be successfully added. Starting values: {self.data.queue_resp=} and {self.data.queue_err=}."
-            f"Starting time: {datetime.datetime.now()}"
-        )
-
-        while self.data.queue_resp is None or self.data.queue_err:
-            self._socketio.sleep(0.3)
-
-        logger.debug(
-            f"Finished waiting for content to be added. Final values: {self.data.queue_resp=} and {self.data.queue_err=}."
-            f"Finish time: {datetime.datetime.now()}"
-        )
-
-        self.data.queue_resp = None
 
     def __getattr__(self, name):
         """

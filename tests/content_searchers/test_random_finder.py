@@ -5,12 +5,15 @@ from typing import Any, Dict, List
 import pytest
 import requests
 
-from cytubebot.content_searchers.random_finder import RandomFinder
+from worker.random_finder import RandomFinder
 
 
 class FakeResponse:
     def __init__(self, text: str) -> None:
         self.text: str = text
+
+    def raise_for_status(self) -> None:
+        return None
 
 
 class FakeFile:
@@ -71,7 +74,7 @@ class TestRandomFinder:
     ) -> None:
         fake_text: str = "ytInitialData = " + json.dumps(fake_video_data) + ";</script>"
 
-        def fake_get(url: str, timeout: int) -> FakeResponse:
+        def fake_get(url: str, timeout: int, cookies: None | Dict) -> FakeResponse:
             return FakeResponse(fake_text)
 
         monkeypatch.setattr(requests, "get", fake_get)
@@ -103,7 +106,7 @@ class TestRandomFinder:
             "ytInitialData = " + json.dumps(fake_data_no_videos) + ";</script>"
         )
 
-        def fake_get(url: str, timeout: int) -> FakeResponse:
+        def fake_get(url: str, timeout: int, cookies: None | Dict) -> FakeResponse:
             return FakeResponse(fake_text)
 
         monkeypatch.setattr(requests, "get", fake_get)
@@ -129,7 +132,7 @@ class TestRandomFinder:
 
         fake_text: str = "ytInitialData = " + json.dumps(fake_video_data) + ";</script>"
 
-        def fake_get(url: str, timeout: int) -> FakeResponse:
+        def fake_get(url: str, timeout: int, cookies: None | Dict) -> FakeResponse:
             return FakeResponse(fake_text)
 
         monkeypatch.setattr(requests, "get", fake_get)
@@ -148,7 +151,7 @@ class TestRandomFinder:
     ) -> None:
         fake_text: str = "ytInitialData = " + json.dumps(fake_video_data) + ";</script>"
 
-        def fake_get(url: str, timeout: int) -> FakeResponse:
+        def fake_get(url: str, timeout: int, cookies: None | Dict) -> FakeResponse:
             return FakeResponse(fake_text)
 
         monkeypatch.setattr(requests, "get", fake_get)

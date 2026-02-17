@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 from dataclasses import dataclass, field
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -12,33 +13,15 @@ class SIOData:
     Non socket specific data class to share between classes more easily.
     """
 
-    _queue_resp: str | None = None
-    _queue_err: bool = False
-    _current_backoff: int = int(os.environ.get("BASE_RETRY_BACKOFF", 4))
+    _current_backoff: int = int(os.environ.get("BASE_RETRY_BACKOFF", 2))
     _backoff_factor: int = int(os.environ.get("RETRY_BACKOFF_FACTOR", 2))
     _max_backoff: int = int(os.environ.get("MAX_RETRY_BACKOFF", 20))
     _retry_cooloff_period: int = int(os.environ.get("RETRY_COOLOFF_PERIOD", 10))
     _last_retry: datetime.datetime | None = None
     _lock: bool = False
-    _current_media: dict | None = None
-    _queue_position: int = -1
-    _users: dict = field(default_factory=dict)
-
-    @property
-    def queue_resp(self) -> str | None:
-        return self._queue_resp
-
-    @queue_resp.setter
-    def queue_resp(self, value: str) -> None:
-        self._queue_resp = value
-
-    @property
-    def queue_err(self) -> bool:
-        return self._queue_err
-
-    @queue_err.setter
-    def queue_err(self, value: bool) -> None:
-        self._queue_err = value
+    _current_media: Dict | None = None
+    _users: Dict = field(default_factory=dict)
+    _pending: List = field(default_factory=list)
 
     @property
     def lock(self) -> bool:
@@ -53,23 +36,15 @@ class SIOData:
         return self._current_media
 
     @current_media.setter
-    def current_media(self, value: dict) -> None:
+    def current_media(self, value: Dict) -> None:
         self._current_media = value
-
-    @property
-    def queue_position(self) -> int:
-        return self._queue_position
-
-    @queue_position.setter
-    def queue_position(self, value: int) -> None:
-        self._queue_position = value
 
     @property
     def users(self) -> dict:
         return self._users
 
     @users.setter
-    def users(self, value: dict) -> None:
+    def users(self, value: Dict) -> None:
         self._users = value
 
     @property
@@ -95,6 +70,22 @@ class SIOData:
     @last_retry.setter
     def last_retry(self, value: datetime.datetime) -> None:
         self._last_retry = value
+
+    @property
+    def pending(self) -> List:
+        return self._pending
+
+    def add_pending(self, id: str) -> None:
+        self._pending.append(id)
+
+    def remove_pending(self, id: str) -> None:
+        # It's possible that someone else updates the queue
+        # while the bot is running so we could reasonably
+        # get an ID that isn't in pending - this isn't a big deal.
+        try:
+            self._pending.remove(id)
+        except ValueError:
+            pass
 
     def can_retry(self) -> bool:
         """
@@ -124,7 +115,7 @@ class SIOData:
 
         self._current_backoff = max(
             self._current_backoff - self._backoff_factor,
-            int(os.environ.get("BASE_RETRY_BACKOFF", 4)),
+            int(os.environ.get("BASE_RETRY_BACKOFF", 2)),
         )
         logger.debug(f"Backoff reduced to {self._current_backoff}")
 
@@ -137,7 +128,7 @@ class SIOData:
         )
         logger.debug(f"Current backoff increased to {self._current_backoff}")
 
-    def add_or_update_user(self, user_id: str, user_info: dict) -> None:
+    def add_or_update_user(self, user_id: str, user_info: Dict) -> None:
         """
         Add a new user or update an existing user's information in the users dictionary.
 

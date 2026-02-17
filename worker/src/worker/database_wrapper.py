@@ -1,9 +1,7 @@
 import json
 import logging
 import threading
-
-import requests
-from bs4 import BeautifulSoup as bs
+from typing import Dict
 
 import redis
 
@@ -28,6 +26,7 @@ class DatabaseWrapper:
                 instance._redis = redis.Redis(
                     host=host, port=port, db=0, decode_responses=True
                 )
+                instance._create_consumer_group()
                 cls._instance = instance
         return cls._instance
 
@@ -49,13 +48,46 @@ class DatabaseWrapper:
                 logger.exception(f"Failed to decode JSON data for key: {key}")
         return {}
 
-    def _save_channel_data(self, channel_id: str, data: dict) -> None:
+    def _save_channel_data(self, channel_id: str, data: Dict) -> None:
         key = self._make_key(channel_id)
         logger.debug(f"Updating {key} with {data=}")
         try:
             self._redis.set(key, json.dumps(data))
         except Exception:
             logger.exception(f"Failed to save data for key: {key}")
+
+    def _create_consumer_group(self) -> None:
+        try:
+            self._redis.xgroup_create(
+                "stream:jobs:pending", "workers", id="0", mkstream=True
+            )
+        except redis.ResponseError:
+            pass
+
+    def add_to_stream(self, stream: str, data: Dict) -> None:
+        self._redis.xadd(stream, data)
+
+    def read_stream(self, stream: str) -> Dict:
+        pend = self._redis.xpending(stream, "workers")["pending"]
+        pending_msgs = []
+        if pend:
+            pending_msgs = self._redis.xreadgroup(
+                "workers", "worker", {stream: "0"}, count=pend, block=0
+            )
+
+        new_messages = self._redis.xreadgroup(
+            groupname="workers",
+            consumername="worker",
+            streams={stream: ">"},
+            count=1,
+            block=0,
+        )
+
+        return pending_msgs + new_messages
+
+    def ack_stream_message(self, stream: str, id: str) -> None:
+        self._redis.xack(stream, "workers", id)
+        self._redis.xdel(stream, id)
 
     def update_datetime(self, channel_id: str, new_dt: str) -> None:
         data = self._load_channel_data(channel_id)
@@ -88,76 +120,9 @@ class DatabaseWrapper:
                     logger.exception(f"JSON decoding failed for key: {key}")
         return channels
 
-    def add_channel(self, channel_id: str, channel_name: str) -> None:
-        channel_url = (
-            f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-        )
-        try:
-            resp = requests.get(channel_url, timeout=60)
-            resp.raise_for_status()
-        except requests.RequestException:
-            logger.exception(f"Failed to retrieve feed for channel_id: {channel_id}")
-            return
-
-        soup = bs(resp.text, "lxml")
-        try:
-            entry = soup.find_all("entry")[0]
-            published = entry.find_all("published")[0].text
-        except (IndexError, AttributeError):
-            logger.error(f"Failed to parse published date for channel_id: {channel_id}")
-            return
-
-        data = {
-            "channelId": channel_id,
-            "name": channel_name,
-            "last_update": published,
-            "tags": [],
-        }
-        self._save_channel_data(channel_id, data)
-        logger.info(f"Added channel {channel_id} with name {channel_name}")
-
-    def remove_channel(self, channel_name: str) -> None:
-        pattern = "*@youtube.channel.id"
-        for key in self._redis.scan_iter(pattern):
-            data_str = self._redis.get(key)
-            if data_str and isinstance(data_str, str):
-                try:
-                    data = json.loads(data_str)
-                    if data.get("name") == channel_name:
-                        self._redis.delete(key)
-                        logger.info(f"Removed channel with name {channel_name}")
-                        return
-                except json.JSONDecodeError:
-                    logger.exception(f"JSON decoding failed for key: {key}")
-        logger.warning(f"No channel found with name {channel_name}")
-
-    def add_tags(self, channel_id: str, new_tags: list) -> None:
-        data = self._load_channel_data(channel_id)
-        tags = data.get("tags", [])
-        if not isinstance(tags, list):
-            tags = []
-        for tag in new_tags:
-            if tag not in tags:
-                tags.append(tag)
-        data["tags"] = tags
-        self._save_channel_data(channel_id, data)
-        logger.info(f"Added tags {new_tags} to channel {channel_id}")
-
-    def remove_tags(self, channel_id: str, tags_to_remove: list) -> None:
-        data = self._load_channel_data(channel_id)
-        if not data:
-            logger.error(f"No channel found for ID: {channel_id}")
-            return
-        tags = data.get("tags", [])
-        if not isinstance(tags, list):
-            tags = []
-        data["tags"] = [tag for tag in tags if tag not in tags_to_remove]
-        self._save_channel_data(channel_id, data)
-        logger.info(f"Removed tags {tags_to_remove} from channel {channel_id}")
-
     def shutdown(self) -> None:
-        logger.debug("Shutting down DB remotely...")
-        self._redis.shutdown()
+        logger.info("Shutting down DB remotely...")
+        self._redis.shutdown(save=True)
 
     @property
     def connection(self) -> redis.Redis:

@@ -1,11 +1,14 @@
 import logging
 import os
+import time
 from datetime import datetime, timedelta
+from typing import Dict
 
 from cytubebot.blackjack.blackjack_bot import BlackjackBot
 from cytubebot.chatbot.chat_processor import ChatProcessor
-from cytubebot.common.commands import Commands
-from cytubebot.common.socket_wrapper import SocketWrapper
+from cytubebot.commands import Commands
+from cytubebot.database_wrapper import DatabaseWrapper
+from cytubebot.socket_wrapper import SocketWrapper
 
 REQUIRED_PERMISSION_LEVEL = 3
 ACCEPTABLE_ERRORS = [
@@ -30,8 +33,31 @@ class ChatBot:
         self._password = password
 
         self._sio = SocketWrapper("", "")
+        self._db = DatabaseWrapper("", 0)
         self._chat_processor = ChatProcessor()
         self._blackjack_bot = BlackjackBot()
+
+    def video_queue(self):
+        logger.info("Chatbot ready to process new videos.")
+        while True:
+            resp = self._db.read_stream("stream:jobs:results")
+            if not resp:
+                continue
+
+            _, messages = resp[0]
+            for msg_id, data in messages:
+                logger.debug("Processing content from stream: %s - %s", msg_id, data)
+                video_id = data["video_id"]
+                self._sio.data.add_pending(video_id)
+
+                try:
+                    while video_id in self._sio.data.pending:
+                        if self._sio.data.can_retry:
+                            self._sio.add_video_to_queue(video_id)
+                            time.sleep(self._sio.data.current_backoff)
+                    self._db.ack_stream_message("stream:jobs:results", msg_id)
+                except Exception:
+                    logger.error("Failed to add %s to queue.", video_id)
 
     def listen(self) -> None:
         """
@@ -43,6 +69,25 @@ class ChatBot:
             username: str, required: int = REQUIRED_PERMISSION_LEVEL
         ) -> bool:
             return self._sio.data.users.get(username, 0) >= required
+
+        def extract_id(resp: Dict) -> str:
+            if "id" in resp and resp["id"]:
+                return resp["id"]
+
+            link = resp.get("link")
+            if isinstance(link, str) and link.strip():
+                parts = link.rstrip("/").split("/")
+                if parts:
+                    return parts[-1]
+
+            try:
+                nested = resp["item"]["media"]["id"]
+                if nested:
+                    return nested
+            except (KeyError, TypeError):
+                pass
+
+            raise KeyError(f"No valid ID found in response: {resp}")
 
         standard_commands = set(Commands.STANDARD_COMMANDS.value.keys())
         admin_commands = set(Commands.ADMIN_COMMANDS.value.keys())
@@ -70,7 +115,7 @@ class ChatBot:
             for user in resp:
                 self._sio.data.add_or_update_user(user["name"], user["rank"])
 
-        @self._sio.on("addUser")  # User joins channel
+        @self._sio.on("addUser")
         @self._sio.on("setUserRank")
         def user_add(resp):
             self._sio.data.add_or_update_user(resp["name"], resp["rank"])
@@ -135,56 +180,33 @@ class ChatBot:
         @self._sio.on("queueWarn")
         def queue(resp):
             logger.info(f"queue: {resp}")
-            self._sio.data.queue_err = False
-            self._sio.data.queue_resp = resp
-            self._sio.data.reset_backoff()
+
+            # "queue" sometimes returns the ID in ["item"]["media"]["id"]
+            # "queueWarn" returns the link and not the ID for some reason...
+            id = extract_id(resp)
+            if id:
+                self._sio.data.remove_pending(id)
+                self._sio.data.reset_backoff()
 
         @self._sio.on("queueFail")
         def queue_err(resp):
-            logger.debug(f"queue err: {resp}")
+            logger.info(f"queue err: {resp}")
 
             if resp["msg"] in ACCEPTABLE_ERRORS:
-                logger.debug(
-                    f"Skipping '{resp['msg']}' due to being an acceptable error for {resp['id']}."
-                )
-                self._sio.data.queue_err = False
-                self._sio.data.queue_resp = resp
+                id = extract_id(resp)
+                self._sio.data.remove_pending(id)
                 self._sio.data.reset_backoff()
-                return
-
-            self._sio.data.queue_err = True
-            delay = self._sio.data.current_backoff
-
-            try:
-                video_id = resp["id"]
-
-                if not self._sio.data.can_retry():
-                    self._sio.send_chat_msg(
-                        f"Failed to add {video_id}, retrying in {delay} seconds."
-                    )
-                    self._sio.data.last_retry = datetime.now()
-                    self._sio.sleep(delay)
-                    self._sio.data.increase_backoff()
-                else:
-                    self._sio.data.last_retry = datetime.now()
-
-                self._sio.add_video_to_queue(video_id, wait=False)
-            except KeyError:
-                logger.info("queue err response doesn't contain key 'id'")
+            else:
+                self._sio.data.increase_backoff()
 
         @self._sio.on("changeMedia")
         def change_media(resp):
             logger.info(f"change_media: {resp=}")
             self._sio.data.current_media = resp
 
-        @self._sio.on("setCurrent")
-        def set_current(resp):
-            logger.info(f"set_current: {resp=}")
-            self._sio.data.queue_position = resp
-
         @self._sio.event
         def connect_error(err):
-            logger.info(f"Error: {err}")
+            logger.error(f"Socket connection error: {err}")
             logger.info("Socket connection error. Attempting reconnect.")
             # Is this fine? Or are we doing something recursive?
             socket_url = self._sio.init_socket()
@@ -196,4 +218,3 @@ class ChatBot:
 
         socket_url = self._sio.init_socket()
         self._sio.connect(socket_url)
-        self._sio.wait()

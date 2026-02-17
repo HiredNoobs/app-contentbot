@@ -1,4 +1,4 @@
-ARG PYTHON_IMAGE=python:3.11-slim-bullseye
+ARG PYTHON_IMAGE=python:3.13-slim-trixie
 
 #################################################
 # Create virtualenv and install dependencies
@@ -13,13 +13,13 @@ RUN apt-get update && \
       build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/requirements.txt
+COPY pyproject.toml /app/pyproject.toml
 
 RUN python -m venv /app/venv && \
     /app/venv/bin/pip install --upgrade pip && \
-    /app/venv/bin/pip install --no-cache-dir -r /app/requirements.txt
+    /app/venv/bin/pip install -e .
 
-COPY ./cytubebot/ /app/cytubebot/
+COPY ./src/cytubebot/ /app/cytubebot/
 
 #################################################
 # Build deployable container

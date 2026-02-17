@@ -7,21 +7,12 @@ class TestSIOData:
     def test_setters(self):
         sio = SIOData()
 
-        sio.queue_resp = "response"
-        assert sio.queue_resp == "response"
-
-        sio.queue_err = True
-        assert sio.queue_err is True
-
         sio.lock = True
         assert sio.lock is True
 
         test_media = {"url": "http://example.com"}
         sio.current_media = test_media
         assert sio.current_media == test_media
-
-        sio.queue_position = 5
-        assert sio.queue_position == 5
 
         sio.users = {"Alice": {"rank": 1}}
         assert sio.users == {"Alice": {"rank": 1}}

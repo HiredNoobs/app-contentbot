@@ -4,8 +4,9 @@
 A chatbot for Cytube focusing on automatically tracking and adding new content from YouTube without requiring an API key. Also includes various other features such as chat based blackjack.
 
 ## Requirements
-- Docker & docker compose v2, Windows users may need to manually create a volume for Redis. Note: I have not tested this on Windows.
-- Or Python 3.10+ and a Redis instance.
+Docker & docker compose v2, Windows users may need to manually create a volume for Redis. Note: I have not tested this on Windows.
+
+Or Python 3.10+ and a Redis instance. If not using Docker then install with ``python -m pip install -e .`` or ``python -m pip install -e ".[dev]"``.
 
 ## Usage
 Simply run ``docker compose up -d``. The compose file is expecting a number of environment variables to either be in the environmnet or in a ``.env`` file at the top level directory.

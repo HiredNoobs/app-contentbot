@@ -1,18 +1,15 @@
 import logging
 import os
 import re
-from datetime import datetime
 from typing import List
 
-import requests
 from bs4 import BeautifulSoup as bs
 
-from cytubebot.common.commands import Commands
-from cytubebot.common.database_wrapper import DatabaseWrapper
-from cytubebot.common.exceptions import InvalidTagError
-from cytubebot.common.socket_wrapper import SocketWrapper
-from cytubebot.content_searchers.content_finder import ContentFinder
-from cytubebot.content_searchers.random_finder import RandomFinder
+from cytubebot.commands import Commands
+from cytubebot.database_wrapper import DatabaseWrapper
+from cytubebot.exceptions import InvalidTagError
+from cytubebot.socket_wrapper import SocketWrapper
+from cytubebot.utils import query_endpoint
 
 VALID_TAGS: List = os.environ.get("VALID_TAGS", "").split()
 logger = logging.getLogger(__name__)
@@ -28,8 +25,6 @@ class ChatProcessor:
     def __init__(self) -> None:
         self._sio = SocketWrapper("", "")
         self._db = DatabaseWrapper("", 0)
-        self._random_finder = RandomFinder()
-        self._content_finder = ContentFinder()
 
     def process_chat_command(self, command, args, allow_force=False) -> None:
         if self._sio.data.lock and not (allow_force and args and args[0] == "--force"):
@@ -48,7 +43,7 @@ class ChatProcessor:
     def _process_command(self, command, args) -> None:
         match command:
             case "content":
-                tag = args[0].upper() if args else None
+                tag = args[0].upper() if args else ""
                 self._handle_content(tag)
             case "random" | "random_word":
                 self._handle_random(command, args)
@@ -60,8 +55,6 @@ class ChatProcessor:
                 self._handle_remove_user(args)
             case "add_tags" | "remove_tags":
                 self._handle_tags(command, args)
-            case "christmas" | "xmas":
-                self._handle_add_christmas_videos()
             case "help":
                 self._handle_help()
             case "kill":
@@ -80,7 +73,7 @@ class ChatProcessor:
 
             video_id = curr["id"]
             url = f"https://www.youtube.com/watch?v={video_id}"
-            resp = requests.get(url, timeout=60)
+            resp = query_endpoint(url)
             resp.raise_for_status()
 
             soup = bs(resp.text, "lxml")
@@ -125,64 +118,34 @@ class ChatProcessor:
         )
         self._sio.send_chat_msg(msg)
 
-    def _handle_content(self, tag) -> None:
-        self._sio.send_chat_msg("Searching for content...")
-
-        content = self._content_finder.find_content(tag)
-
-        if len(content) == 0:
-            self._sio.send_chat_msg("No content to add.")
-            return
-
-        self._sio.send_chat_msg(f"Adding {len(content)} videos.")
-
-        for video in content:
-            logger.debug(f"Processing {video}")
-
-            channel_id = video["channel_id"]
-            new_dt = video["datetime"]
-            video_id = video["video_id"]
-
-            self._sio.add_video_to_queue(video_id)
-            self._db.update_datetime(channel_id, str(new_dt))
-
-        self._sio.send_chat_msg("Finished adding content.")
-
-    def _handle_add_christmas_videos(self) -> None:
-        now = datetime.now()
-        if now.day != 25 and now.month != 12:
-            self._sio.send_chat_msg("It's not Christmas :(")
-            return
-
-        xmas_vids = [
-            "3KvWwJ6sh5s",
-            "4JDjkUswzvQ",
-            "vmrMuwcpKkY",
-            "rYUMmIBWm",
-            "Wy1lK-MDZJU",
-        ]
-        for video_id in xmas_vids:
-            self._sio.add_video_to_queue(video_id)
+    def _handle_content(self, tag: str) -> None:
+        self._sio.send_chat_msg("Requesting content.")
+        data = {"tag": tag}
+        self._db.add_to_stream("stream:jobs:pending", data)
 
     def _handle_random(self, command, args) -> None:
-        rand_id = None
+        # This is mainly here to avoid linter issues in the pipeline...
+        logger.debug("command=%s, args=%s", command, args)
+        msg = "Random is currently disabled..."
+        self._sio.send_chat_msg(msg)
+        # rand_id = None
 
-        if command == "random_word":
-            rand_id, search_str = self._random_finder.find_random(use_dict=True)
-        elif command == "random":
-            try:
-                size = int(args[0]) if args else 3
-            except ValueError:
-                size = 3
+        # if command == "random_word":
+        #     rand_id, search_str = self._random_finder.find_random(use_dict=True)
+        # elif command == "random":
+        #     try:
+        #         size = int(args[0]) if args else 3
+        #     except ValueError:
+        #         size = 3
 
-            rand_id, search_str = self._random_finder.find_random(size)
+        #     rand_id, search_str = self._random_finder.find_random(size)
 
-        if rand_id:
-            self._sio.add_video_to_queue(rand_id)
-            self._sio.send_chat_msg(f"Searched: {search_str}, added: {rand_id}")
-        else:
-            msg = "Found no random videos.. Try again. If giving arg over 5, try reducing."
-            self._sio.send_chat_msg(msg)
+        # if rand_id:
+        #     self._sio.add_video_to_queue(rand_id)
+        #     self._sio.send_chat_msg(f"Searched: {search_str}, added: {rand_id}")
+        # else:
+        #     msg = "Found no random videos.. Try again. If giving arg over 5, try reducing."
+        #     self._sio.send_chat_msg(msg)
 
     def _add_tags(self, args) -> None:
         channel_id = args[0]
@@ -211,11 +174,10 @@ class ChatProcessor:
 
         # Common request settings.
         cookies = {"CONSENT": "YES+1"}
-        timeout = 60
 
         def fetch_data(url: str, pattern: str) -> str | None:
             try:
-                resp = requests.get(url, cookies=cookies, timeout=timeout)
+                resp = query_endpoint(url, cookies=cookies)
                 soup = bs(resp.text, "lxml")
                 script_tag = soup.find("script", string=re.compile("ytInitialData"))
                 if script_tag:
