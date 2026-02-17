@@ -12,6 +12,9 @@ class FakeResponse:
     def __init__(self, text: str) -> None:
         self.text: str = text
 
+    def raise_for_status(self) -> None:
+        return None
+
 
 class FakeFile:
     def __init__(self, lines: List[str]) -> None:
