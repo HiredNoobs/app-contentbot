@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 import pytest
 import requests
 
-from cytubebot.content_searchers.random_finder import RandomFinder
+from worker.src.worker.random_finder import RandomFinder
 
 
 class FakeResponse:
