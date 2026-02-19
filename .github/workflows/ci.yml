@@ -31,19 +31,19 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install pytest pytest-cov mypy flake8 Flake8-pyproject
-          pip install -e cytubebot
+          pip install -e contentbot
           pip install -e worker
 
       - name: Run tests with pytest and generate coverage report
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: python3 -m pytest --cov=cytubebot --cov-report=html --cov-fail-under=20
+        run: python3 -m pytest --cov=contentbot --cov-report=html --cov-fail-under=20
 
       - name: Ensure mypy cache directory exists
         run: mkdir -p .mypy_cache/
 
       - name: Run mypy
-        run: python3 -m mypy --install-types --non-interactive --cache-dir=.mypy_cache/ cytubebot
+        run: python3 -m mypy --install-types --non-interactive --cache-dir=.mypy_cache/ contentbot
 
       - name: Run flake8
-        run: flake8 cytubebot tests
+        run: flake8 contentbot tests

@@ -16,14 +16,14 @@ RUN python -m venv /app/venv && \
     /app/venv/bin/pip install --upgrade pip && \
     /app/venv/bin/pip install -e .
 
-COPY ./src/cytubebot/ /app/cytubebot/
+COPY ./src/contentbot/ /app/contentbot/
 
 FROM ${PYTHON_IMAGE} AS prod-stage
 
 COPY --from=build-stage /app/venv/ /app/venv/
-COPY --from=build-stage /app/cytubebot/ /app/cytubebot/
+COPY --from=build-stage /app/contentbot/ /app/contentbot/
 
-ADD https://github.com/dwyl/english-words/raw/master/words.txt /app/cytubebot/randomvideo/eng_dict.txt
+ADD https://github.com/dwyl/english-words/raw/master/words.txt /app/contentbot/randomvideo/eng_dict.txt
 
 ENV PATH="/app/venv/bin:$PATH"
 
