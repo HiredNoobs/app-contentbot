@@ -1,13 +1,51 @@
 [project]
 name = "content-finder"
 version = "3.0.0"
-requires-python = ">=3.11"
+requires-python = ">=3.14.3"
+description = "Async content finder bot with Kafka, Redis, and Socket.IO"
+readme = "README.md"
+
+dependencies = [
+    "aiohttp",
+    "aiokafka",
+    "click",
+    "redis>=5.0.0",
+    "python-socketio[asyncio_client]",
+    "beautifulsoup4",
+    "lxml",
+    "PyYAML",
+]
 
 [project.optional-dependencies]
-dev = ["black", "isort", "flake8"]
+dev = [
+    "black",
+    "isort",
+    "flake8",
+    "pytest",
+    "pytest-asyncio",
+    "mypy",
+]
 
 [tool.flake8]
 extend-ignore = ["E203", "E501", "W503"]
 
 [tool.isort]
 profile = "black"
+
+[tool.black]
+line-length = 120
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.14"
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[project.scripts]
+contentbot = "contentbot.cli:cli"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["contentbot"]

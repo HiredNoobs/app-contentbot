@@ -1,0 +1,2 @@
+class InvalidBlackjackState(Exception):
+    pass
