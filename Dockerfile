@@ -10,22 +10,19 @@ RUN apt-get update && \
       build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml /app/pyproject.toml
+COPY . /app/contentbot
 
-RUN python -m venv /app/venv && \
-    /app/venv/bin/pip install --upgrade pip && \
-    /app/venv/bin/pip install -e .
-
-COPY ./src/contentbot/ /app/contentbot/
+RUN python -m venv /app/contentbot/venv && \
+    /app/contentbot/venv/bin/pip install --upgrade pip && \
+    /app/contentbot/venv/bin/pip install -e .
 
 FROM ${PYTHON_IMAGE} AS prod-stage
 
-COPY --from=build-stage /app/venv/ /app/venv/
 COPY --from=build-stage /app/contentbot/ /app/contentbot/
 
 ADD https://github.com/dwyl/english-words/raw/master/words.txt /app/contentbot/randomvideo/eng_dict.txt
 
-ENV PATH="/app/venv/bin:$PATH"
+ENV PATH="/app/contentbot/venv/bin:$PATH"
 
 WORKDIR /app
 
