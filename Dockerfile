@@ -10,7 +10,7 @@ RUN apt-get update && \
       build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-COPY . /app/contentbot
+COPY . /app/
 
 RUN python -m venv /app/contentbot/venv && \
     /app/contentbot/venv/bin/pip install --upgrade pip && \
