@@ -48,7 +48,8 @@ class Configuration:
         self.kafka_key = config["kafka_key"]
 
         if self._secrets_path:
-            secrets: Dict[str, Any] = yaml.safe_load(file)
+            with open(self._secrets_path) as file:
+                secrets: Dict[str, Any] = yaml.safe_load(file)
 
             self.cytube_user = secrets["cytube_user"]
             self.cytube_pass = secrets["cytube_pass"]
