@@ -67,6 +67,9 @@ class AsyncChatProcessor:
     # Event handlers
     # -----------------------------------------------------
 
+    async def handle_channel_opts(self):
+        self._sio.login()
+
     async def handle_chat_message(self, data: Dict):
         if not self._should_process_chat(data):
             return

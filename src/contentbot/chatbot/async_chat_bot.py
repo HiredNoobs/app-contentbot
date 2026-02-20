@@ -33,6 +33,10 @@ class AsyncChatBot:
             logger.info("Socket connected.")
 
         @self.sio.event
+        async def channelOpts():
+            await self._processor.handle_channel_opts()
+
+        @self.sio.event
         async def disconnect():
             logger.info("Socket disconnected.")
 

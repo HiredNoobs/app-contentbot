@@ -12,9 +12,11 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class AsyncSocket:
-    def __init__(self, url: str, channel_name: str):
+    def __init__(self, url: str, channel_name: str, username: str, password: str):
         self._url = url
         self._channel_name = channel_name
+        self._username = username
+        self._password = password
         self._socketio = socketio.AsyncClient()
         self.data = SIOData()
 
@@ -28,6 +30,9 @@ class AsyncSocket:
                 return server["url"]
 
         raise ConnectionError("Unable to find a secure socket to connect to")
+
+    async def login(self) -> None:
+        self._socketio.emit("login", {"name": self._username, "pw": self._password})
 
     async def send_chat_msg(self, message: str) -> None:
         msgs = wrap(message, MSG_LIMIT)

@@ -71,7 +71,7 @@ async def run_chatbot(cfg: Dict) -> None:
     await kafka_producer.start()
     await kafka_consumer.start()
 
-    sio = AsyncSocket(cfg["cytube_url"], cfg["cytube_channel"])
+    sio = AsyncSocket(cfg["cytube_url"], cfg["cytube_channel"], cfg["cytube_user"], cfg["cytube_pass"])
     processor = AsyncChatProcessor(sio, db, kafka_producer)
     bot = AsyncChatBot(sio, processor, db, kafka_consumer)
 
