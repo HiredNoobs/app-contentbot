@@ -23,6 +23,7 @@ class AsyncKafkaConsumer:
             enable_auto_commit=True,
             auto_offset_reset="latest",
             ssl_context=self._ssl_context,
+            security_protocol="SSL",
         )
         await self._consumer.start()
         logger.info(f"Kafka consumer started for topic {self._topic}")

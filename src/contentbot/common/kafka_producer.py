@@ -14,7 +14,12 @@ class AsyncKafkaProducer:
         self._ssl_context = ssl_context
 
     async def start(self):
-        self._producer = AIOKafkaProducer(bootstrap_servers=self._bootstrap, linger_ms=5, ssl_context=self._ssl_context)
+        self._producer = AIOKafkaProducer(
+            bootstrap_servers=self._bootstrap,
+            linger_ms=5,
+            ssl_context=self._ssl_context,
+            security_protocol="SSL",
+        )
         await self._producer.start()
         logger.info("Kafka producer started")
 
