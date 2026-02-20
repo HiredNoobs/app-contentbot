@@ -54,7 +54,7 @@ class Configuration:
             self.cytube_user = secrets["cytube_user"]
             self.cytube_pass = secrets["cytube_pass"]
 
-            self.db_pass = config["db_pass"]
+            self.db_pass = secrets["db_pass"]
 
     def to_dict(self) -> dict:
         return {key: value for key, value in self.__dict__.items() if not key.startswith("_")}
