@@ -48,4 +48,7 @@ contentbot = "contentbot.cli:cli"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["contentbot"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
