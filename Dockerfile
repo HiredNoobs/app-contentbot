@@ -12,18 +12,16 @@ RUN apt-get update && \
 
 COPY . /app/
 
-RUN python -m venv /app/contentbot/venv && \
-    /app/contentbot/venv/bin/pip install --upgrade pip && \
-    /app/contentbot/venv/bin/pip install -e .
+RUN pip install --upgrade pip && \
+    pip install .
 
 FROM ${PYTHON_IMAGE} AS prod-stage
 
-COPY --from=build-stage /app/contentbot/ /app/contentbot/
-
-ADD https://github.com/dwyl/english-words/raw/master/words.txt /app/contentbot/randomvideo/eng_dict.txt
-
-ENV PATH="/app/contentbot/venv/bin:$PATH"
-
 WORKDIR /app
+
+COPY --from=build-stage /usr/local /usr/local
+
+ADD https://github.com/dwyl/english-words/raw/master/words.txt \
+    /app/contentbot/randomvideo/eng_dict.txt
 
 ENTRYPOINT ["contentbot"]
