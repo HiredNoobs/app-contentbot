@@ -39,9 +39,10 @@ class Configuration:
         kafka_bootstrap_servers = config["kafka_bootstrap_servers"].split(",")
         self.kafka_bootstrap_servers = [f"{server}.{domain}:{kafka_port}" for server in kafka_bootstrap_servers]
 
-        self.kafka_content_topic = config["kafka_queue_topic"]
-        self.kafka_job_topic = config["kafka_job_queue_topic"]
+        self.kafka_content_topic = config["kafka_content_topic"]
+        self.kafka_job_topic = config["kafka_job_topic"]
         self.kafka_consumer_group = config["kafka_consumer_group"]
+
         self.kafka_ca_cert = config["kafka_ca_cert"]
         self.kafka_cert = config["kafka_cert"]
         self.kafka_key = config["kafka_key"]

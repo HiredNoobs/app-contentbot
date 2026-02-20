@@ -17,11 +17,9 @@ RUN pip install --upgrade pip && \
 
 FROM ${PYTHON_IMAGE} AS prod-stage
 
-WORKDIR /app
-
 COPY --from=build-stage /usr/local /usr/local
 
 ADD https://github.com/dwyl/english-words/raw/master/words.txt \
-    /app/contentbot/randomvideo/eng_dict.txt
+    /etc/contentbot/eng_dict.txt
 
 ENTRYPOINT ["contentbot"]
