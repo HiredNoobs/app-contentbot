@@ -10,6 +10,7 @@ dependencies = [
     "aiokafka",
     "click",
     "redis>=5.0.0",
+    "requests",
     "python-socketio[asyncio_client]",
     "beautifulsoup4",
     "lxml",
