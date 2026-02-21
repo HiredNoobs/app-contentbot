@@ -7,10 +7,9 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 environment: str = os.getenv("RUNNING_ENVIRONMENT", "UNKNOWN").upper()
 
-std_out: logging.Handler = logging.StreamHandler(sys.stdout)
-log_file: logging.Handler = logging.FileHandler("contentbot.log")
+stderr: logging.Handler = logging.StreamHandler(sys.stderr)
 
-handlers: List[logging.Handler] = [std_out, log_file]
+handlers: List[logging.Handler] = [stderr]
 
 if environment == "DOCKER":
     docker_log: logging.Handler = logging.StreamHandler(open("/proc/1/fd/1", "w"))
