@@ -36,7 +36,7 @@ class AsyncSocket:
         await self.client.connect(socket_url)
 
     async def login(self) -> None:
-        self.client.emit("login", {"name": self._username, "pw": self._password})
+        await self.client.emit("login", {"name": self._username, "pw": self._password})
 
     async def send_chat_msg(self, message: str) -> None:
         msgs = wrap(message, MSG_LIMIT)
