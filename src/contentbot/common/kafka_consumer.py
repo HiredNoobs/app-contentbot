@@ -1,8 +1,8 @@
-import json
 import logging
 import ssl
+from typing import AsyncGenerator
 
-from aiokafka import AIOKafkaConsumer, OffsetAndMetadata, TopicPartition
+from aiokafka import AIOKafkaConsumer, ConsumerRecord, OffsetAndMetadata, TopicPartition
 
 logger = logging.getLogger("contentbot")
 
@@ -25,21 +25,33 @@ class AsyncKafkaConsumer:
             ssl_context=self._ssl_context,
             security_protocol="SSL",
         )
+
+        # Yes this is really necessary according to mypy...
+        if not self._consumer:
+            return
+
         await self._consumer.start()
         logger.info(f"Kafka consumer started for topic {self._topic}")
 
-    async def consume(self):
+    async def consume(self) -> AsyncGenerator[ConsumerRecord]:
+        if not self._consumer:
+            return
+
         async for msg in self._consumer:
             logger.debug("Receieved data from Kafka: %s", msg.value)
-            yield json.loads(msg)
+            yield msg
 
     async def commit(self, topic: str, partition: int, offset: int) -> None:
-        if self._consumer:
-            tp = TopicPartition(topic, partition)
-            om = OffsetAndMetadata(offset + 1, None)
-            await self._consumer.commit({tp: om})
+        if not self._consumer:
+            return
+
+        tp = TopicPartition(topic, partition)
+        om = OffsetAndMetadata(offset + 1, None)
+        await self._consumer.commit({tp: om})
 
     async def stop(self):
-        if self._consumer:
-            await self._consumer.stop()
-            logger.info("Kafka consumer stopped")
+        if not self._consumer:
+            return
+
+        await self._consumer.stop()
+        logger.info("Kafka consumer stopped")

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from datetime import datetime, timedelta
@@ -129,7 +130,7 @@ class AsyncChatProcessor:
         pass
 
     async def handle_kafka_job(self, msg: ConsumerRecord) -> None:
-        content = msg.value
+        content = json.loads(msg.value)
         channel_id = content["channel_id"]
         video_id = content["video_id"]
         dt = content["datetime"]

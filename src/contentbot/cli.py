@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 from typing import Dict
@@ -96,8 +97,9 @@ async def run_worker(cfg: Dict) -> None:
     content_finder = ContentFinder()
 
     try:
-        async for channel in kafka_consumer.consume():
+        async for channel_record in kafka_consumer.consume():
             try:
+                channel = json.loads(channel_record.msg)
                 content = content_finder.find_content(channel)
                 for c in content:
                     await kafka_producer.send(c)
