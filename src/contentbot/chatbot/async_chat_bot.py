@@ -60,8 +60,8 @@ class AsyncChatBot:
         """
         Connect to Socket.IO and wait forever.
         """
-        await self._sio.connect()
-        await self._sio.wait()
+        await self._sio.client.connect()
+        await self._sio.client.wait()
 
     async def consume_kafka_jobs(self):
         """
