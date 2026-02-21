@@ -53,7 +53,7 @@ class ContentFinder:
                 content.append(
                     {
                         "channel_id": channel_id,
-                        "datetime": published,
+                        "datetime": published_str,
                         "video_id": video_id,
                     }
                 )
