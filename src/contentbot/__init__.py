@@ -19,7 +19,7 @@ if environment == "DOCKER":
 log_level: str = os.getenv("LOG_LEVEL", "DEBUG").upper()
 logger.setLevel(log_level)
 
-formatter = logging.Formatter("%(asctime)s %(levelname)s [%(filename)s:%(funcname)s():L%(lineno)s] %(message)s")
+formatter = logging.Formatter("%(asctime)s %(levelname)s [%(filename)s:%(funcName)s():L%(lineno)d] %(message)s")
 
 for handler in handlers:
     handler.setLevel(log_level)
