@@ -17,7 +17,7 @@ class AsyncSocket:
         self._channel_name = channel_name
         self._username = username
         self._password = password
-        self._socketio = socketio.AsyncClient()
+        self.client = socketio.AsyncClient()
         self.data = SIOData()
 
     async def init_socket(self) -> str:
@@ -32,15 +32,15 @@ class AsyncSocket:
         raise ConnectionError("Unable to find a secure socket to connect to")
 
     async def login(self) -> None:
-        self._socketio.emit("login", {"name": self._username, "pw": self._password})
+        self.client.emit("login", {"name": self._username, "pw": self._password})
 
     async def send_chat_msg(self, message: str) -> None:
         msgs = wrap(message, MSG_LIMIT)
         for msg in msgs:
-            await self._socketio.emit("chatMsg", {"msg": msg})
+            await self.client.emit("chatMsg", {"msg": msg})
 
     async def add_video_to_queue(self, id: str) -> None:
-        await self._socketio.emit(
+        await self.client.emit(
             "queue",
             {"id": id, "type": "yt", "pos": "end", "temp": True},
         )

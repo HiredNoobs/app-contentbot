@@ -28,31 +28,31 @@ class AsyncChatBot:
         Attach event handlers to the Socket.IO client.
         """
 
-        @self._sio.event
+        @self._sio.client.event
         async def connect():
             logger.info("Socket connected.")
 
-        @self._sio.event
+        @self._sio.client.event
         async def channelOpts():
             await self._processor.handle_channel_opts()
 
-        @self._sio.event
+        @self._sio.client.event
         async def disconnect():
             logger.info("Socket disconnected.")
 
-        @self._sio.event
+        @self._sio.client.event
         async def chatMsg(data):
             await self._processor.handle_chat_message(data)
 
-        @self._sio.event
+        @self._sio.client.event
         async def userJoin(data):
             await self._processor.handle_user_join(data)
 
-        @self._sio.event
+        @self._sio.client.event
         async def userLeave(data):
             await self._processor.handle_user_leave(data)
 
-        @self._sio.event
+        @self._sio.client.event
         async def setCurrent(data):
             await self._processor.handle_set_current(data)
 
