@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Dict, List
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.commands import Commands
@@ -135,13 +135,14 @@ class AsyncChatProcessor:
     async def _cmd_add_tags(self, channel_name: str, tags: str) -> None:
         pass
 
-    # Add all channels to job queue topic
-    # worker(s) consume and add content to
-    # content queue
-    async def _cmd_content_search(self) -> None:
-        channels = await self._db.get_channels()
-        for channel in channels:
-            await self._queue.send(channel)
+    async def _cmd_content_search(self, tags: List) -> None:
+        if not tags:
+            tags = [None]
+
+        for tag in tags:
+            channels = await self._db.get_channels(tag)
+            for channel in channels:
+                await self._queue.send(channel)
 
     async def _cmd_current(self) -> None:
         pass
