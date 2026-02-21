@@ -67,5 +67,5 @@ class AsyncChatBot:
         """
         Consume Kafka jobs and delegate to the processor.
         """
-        async for msg in self.kafka_consumer.consume():
+        async for msg in self._kafka_consumer.consume():
             await self._processor.handle_kafka_job(msg)
