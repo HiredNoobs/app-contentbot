@@ -4,7 +4,7 @@ import ssl
 
 from aiokafka import AIOKafkaProducer
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("contentbot")
 
 
 class AsyncKafkaProducer:
@@ -26,6 +26,8 @@ class AsyncKafkaProducer:
     async def send(self, data: dict) -> None:
         if not self._producer:
             return
+
+        logger.debug("Publishing %s to Kafka topic %s", json.dumps(data), self._topic)
         await self._producer.send_and_wait(self._topic, json.dumps(data).encode("utf-8"))
 
     async def stop(self):

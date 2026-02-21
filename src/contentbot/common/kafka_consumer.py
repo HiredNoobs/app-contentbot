@@ -4,7 +4,7 @@ import ssl
 
 from aiokafka import AIOKafkaConsumer
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("contentbot")
 
 
 class AsyncKafkaConsumer:
@@ -30,6 +30,7 @@ class AsyncKafkaConsumer:
 
     async def consume(self):
         async for msg in self._consumer:
+            logger.debug("Receieved data from Kafka: %s", msg.value)
             yield json.loads(msg.value)
 
     async def stop(self):

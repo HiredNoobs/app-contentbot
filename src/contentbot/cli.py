@@ -108,8 +108,8 @@ async def run_worker(cfg: Dict) -> None:
     await kafka_consumer.start()
 
     try:
-        async for msg in kafka_consumer.consume():
-            logger.debug("Worker received: %s", msg)
+        async for _ in kafka_consumer.consume():
+            pass
     finally:
         await kafka_consumer.stop()
         await db.close()
