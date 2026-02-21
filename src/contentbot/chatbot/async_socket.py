@@ -17,6 +17,9 @@ class AsyncSocket:
         self._channel_name = channel_name
         self._username = username
         self._password = password
+
+        # Only "public" for the decorators in AsyncChatBot,
+        # all functionality is in this classes methods.
         self.client = socketio.AsyncClient()
         self.data = SIOData()
 
@@ -34,6 +37,9 @@ class AsyncSocket:
     async def connect(self) -> None:
         socket_url = await self._init_socket()
         await self.client.connect(socket_url)
+
+    async def join_channel(self) -> None:
+        await self.client.emit("joinChannel", {"name": self._channel_name})
 
     async def login(self) -> None:
         await self.client.emit("login", {"name": self._username, "pw": self._password})
