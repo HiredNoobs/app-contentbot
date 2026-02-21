@@ -86,11 +86,11 @@ class AsyncChatProcessor:
         command = msg_parts[0].casefold()
         args = msg_parts[1:] if len(msg_parts) > 1 else []
 
-        if command.startswith(Commands.COMMAND_SYMBOL):
+        if command.startswith(Commands.COMMAND_SYMBOL.value):
             command = command[1:]
-            if command in Commands.STANDARD_COMMANDS.value:
+            if command in Commands.STANDARD_COMMANDS.value.keys():
                 await self._handle_command(username, command, args)
-            elif command in Commands.BLACKJACK_COMMANDS.value:
+            elif command in Commands.BLACKJACK_COMMANDS.value.keys():
                 pass
             else:
                 pass

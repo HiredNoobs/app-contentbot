@@ -28,36 +28,36 @@ class AsyncChatBot:
         Attach event handlers to the Socket.IO client.
         """
 
-        @self._sio.client.event
+        @self._sio._client.event
         async def connect():
             logger.info("Socket connected.")
             await self._processor.handle_connect()
 
-        @self._sio.client.event
+        @self._sio._client.event
         async def channelOpts(data):
             logger.debug("channelOpts event captured: %s", data)
             await self._processor.handle_channel_opts()
 
-        @self._sio.client.event
+        @self._sio._client.event
         async def disconnect():
             logger.info("Socket disconnected.")
 
-        @self._sio.client.event
+        @self._sio._client.event
         async def chatMsg(data):
             logger.debug("chatMsg event captured: %s", data)
             await self._processor.handle_chat_message(data)
 
-        @self._sio.client.event
+        @self._sio._client.event
         async def userJoin(data):
             logger.debug("userJoin event captured: %s", data)
             await self._processor.handle_user_join(data)
 
-        @self._sio.client.event
+        @self._sio._client.event
         async def userLeave(data):
             logger.debug("userLeave event captured: %s", data)
             await self._processor.handle_user_leave(data)
 
-        @self._sio.client.event
+        @self._sio._client.event
         async def setCurrent(data):
             logger.debug("setCurrent event captured: %s", data)
             await self._processor.handle_set_current(data)
@@ -67,7 +67,7 @@ class AsyncChatBot:
         Connect to Socket.IO and wait forever.
         """
         await self._sio.connect()
-        await self._sio.client.wait()
+        await self._sio._client.wait()
 
     async def consume_kafka_jobs(self):
         """

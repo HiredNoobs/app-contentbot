@@ -20,7 +20,7 @@ class AsyncSocket:
 
         # Only "public" for the decorators in AsyncChatBot,
         # all functionality is in this classes methods.
-        self.client = socketio.AsyncClient()
+        self._client = socketio.AsyncClient()
         self.data = SIOData()
 
     async def _init_socket(self) -> str:
@@ -36,21 +36,21 @@ class AsyncSocket:
 
     async def connect(self) -> None:
         socket_url = await self._init_socket()
-        await self.client.connect(socket_url)
+        await self._client.connect(socket_url)
 
     async def join_channel(self) -> None:
-        await self.client.emit("joinChannel", {"name": self._channel_name})
+        await self._client.emit("joinChannel", {"name": self._channel_name})
 
     async def login(self) -> None:
-        await self.client.emit("login", {"name": self._username, "pw": self._password})
+        await self._client.emit("login", {"name": self._username, "pw": self._password})
 
     async def send_chat_msg(self, message: str) -> None:
         msgs = wrap(message, MSG_LIMIT)
         for msg in msgs:
-            await self.client.emit("chatMsg", {"msg": msg})
+            await self._client.emit("chatMsg", {"msg": msg})
 
     async def add_video_to_queue(self, id: str) -> None:
-        await self.client.emit(
+        await self._client.emit(
             "queue",
             {"id": id, "type": "yt", "pos": "end", "temp": True},
         )
