@@ -99,7 +99,7 @@ async def run_worker(cfg: Dict) -> None:
     try:
         async for channel_record in kafka_consumer.consume():
             try:
-                channel = json.loads(channel_record.msg)
+                channel = json.loads(channel_record.value)
                 content = content_finder.find_content(channel)
                 for c in content:
                     await kafka_producer.send(c)
