@@ -105,7 +105,7 @@ async def run_worker(cfg: Dict) -> None:
 # -----------------------------------------------------
 
 
-@click.group()
+@click.group(invoke_without_command=False)
 def cli() -> None:
     pass
 
