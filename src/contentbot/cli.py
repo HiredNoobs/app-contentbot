@@ -110,13 +110,13 @@ def cli() -> None:
     pass
 
 
-@cli.command
+@cli.command()
 def chatbot() -> None:
     cfg = load_config()
     asyncio.run(run_chatbot(cfg))
 
 
-@cli.command
+@cli.command()
 def worker() -> None:
     cfg = load_config()
     asyncio.run(run_worker(cfg))
