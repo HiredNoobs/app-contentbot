@@ -13,6 +13,7 @@ from contentbot.common.kafka_consumer import AsyncKafkaConsumer
 from contentbot.common.kafka_producer import AsyncKafkaProducer
 from contentbot.configuration import Configuration
 from contentbot.utils.ssl import create_ssl_context
+from contentbot.worker.content_finder import ContentFinder
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
@@ -92,9 +93,16 @@ async def run_worker(cfg: Dict) -> None:
     await kafka_producer.start()
     await kafka_consumer.start()
 
+    content_finder = ContentFinder()
+
     try:
-        async for _ in kafka_consumer.consume():
-            pass
+        async for channel in kafka_consumer.consume():
+            try:
+                content = content_finder.find_content(channel)
+                for c in content:
+                    await kafka_producer.send(c)
+            except Exception as err:
+                logger.exception("Unhandled exception: %s", err)
     finally:
         await kafka_consumer.stop()
         await db.close()

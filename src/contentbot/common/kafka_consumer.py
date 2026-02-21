@@ -2,7 +2,7 @@ import json
 import logging
 import ssl
 
-from aiokafka import AIOKafkaConsumer
+from aiokafka import AIOKafkaConsumer, OffsetAndMetadata, TopicPartition
 
 logger = logging.getLogger("contentbot")
 
@@ -31,7 +31,13 @@ class AsyncKafkaConsumer:
     async def consume(self):
         async for msg in self._consumer:
             logger.debug("Receieved data from Kafka: %s", msg.value)
-            yield json.loads(msg.value)
+            yield json.loads(msg)
+
+    async def commit(self, topic: str, partition: int, offset: int) -> None:
+        if self._consumer:
+            tp = TopicPartition(topic, partition)
+            om = OffsetAndMetadata(offset + 1, None)
+            await self._consumer.commit({tp: om})
 
     async def stop(self):
         if self._consumer:

@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 from typing import Dict, List, Optional
 
 import redis.asyncio as redis
@@ -35,8 +36,18 @@ class AsyncRedisDB:
     def _make_channel_key(channel_id: str) -> str:
         return f"{channel_id}@youtube.channel.id"
 
+    @staticmethod
+    def _processed_key(channel_id: str) -> str:
+        return f"{channel_id}@youtube.processed"
+
     # -----------------------------------------------------
-    # Async methods
+    # General Redis methods
+    # -----------------------------------------------------
+    async def close(self) -> None:
+        await self._redis.close()
+
+    # -----------------------------------------------------
+    # Content methods
     # -----------------------------------------------------
 
     async def _load_channel_data(self, channel_id: str) -> Dict:
@@ -62,20 +73,43 @@ class AsyncRedisDB:
         if not data:
             logger.error("No channel found for ID: %s", channel_id)
             return
+
+        # Since the bot might not necessarily get data in order
+        # records in Redis should only be updated with the most
+        # recent timestamp.
+        # This does open the possibility of losing some data...
+        try:
+            old_dt = data.get("last_update")
+            if old_dt:
+                old_dt_parsed = datetime.fromisoformat(old_dt)
+                new_dt_parsed = datetime.fromisoformat(new_dt)
+
+                if new_dt_parsed <= old_dt_parsed:
+                    return
+        except Exception:
+            logger.exception("Failed comparing datetimes for %s", channel_id)
+            return
+
         data["last_update"] = new_dt
         await self._save_channel_data(channel_id, data)
 
     async def get_channels(self, tag: Optional[str] = None) -> List[Dict]:
-        channels = []
-        async for key in self._redis.scan_iter("*@youtube.channel.id"):
-            raw = await self._redis.get(key)
+        channels: List[Dict] = []
+        keys = [key async for key in self._redis.scan_iter("*@youtube.channel.id")]
+
+        if not keys:
+            return channels
+
+        raw_values = await self._redis.mget(keys)
+
+        for raw in raw_values:
             if not raw or not isinstance(raw, str):
                 continue
 
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
-                logger.exception("Failed to load JSON from %s", key)
+                logger.exception("Failed to load JSON from mget result")
                 continue
 
             if tag:
@@ -142,5 +176,76 @@ class AsyncRedisDB:
         data["tags"] = [t for t in tags if t not in tags_to_remove]
         await self._save_channel_data(channel_id, data)
 
-    async def close(self) -> None:
-        await self._redis.close()
+    # -----------------------------------------------------
+    # Queue handling methods
+    # -----------------------------------------------------
+
+    # These mappings are required because Cytube only returns the video ID
+    # and we'll need the channel ID later for the pending/processed keys.
+    async def map_video_to_channel(self, video_id: str, channel_id: str) -> None:
+        key = f"{video_id}@youtube.channel.mapping"
+        await self._redis.set(key, channel_id, ex=3600)
+
+    async def get_channel_for_video(self, video_id: str) -> Optional[str]:
+        key = f"{video_id}@youtube.channel.mapping"
+        return await self._redis.get(key)
+
+    async def clear_video_channel_map(self, video_id: str) -> None:
+        key = f"{video_id}@youtube.channel.mapping"
+        await self._redis.delete(key)
+
+    #
+    # Kafka
+    #
+    async def map_video_to_kafka_offset(self, video_id: str, topic: str, partition: int, offset: int):
+        key = f"{video_id}@kafka.offset.mapping"
+        value = json.dumps({"topic": topic, "partition": partition, "offset": offset})
+        await self._redis.set(key, value, ex=3600)
+
+    async def get_kafka_offset_for_video(self, video_id: str):
+        key = f"{video_id}@kafka.offset.mapping"
+        raw = await self._redis.get(key)
+        return json.loads(raw) if raw else None
+
+    async def clear_kafka_offset_map(self, video_id: str):
+        key = f"{video_id}@kafka.offset.mapping"
+        await self._redis.delete(key)
+
+    #
+    # Pending
+    #
+    async def mark_video_pending(self, channel_id: str, video_id: str) -> None:
+        key = f"{channel_id}@youtube.pending"
+        await self._redis.sadd(key, video_id)
+
+    async def is_video_pending(self, channel_id: str, video_id: str) -> bool:
+        key = f"{channel_id}@youtube.pending"
+        return await self._redis.sismember(key, video_id)
+
+    async def clear_video_pending(self, channel_id: str, video_id: str) -> None:
+        key = f"{channel_id}@youtube.pending"
+        await self._redis.srem(key, video_id)
+
+    #
+    # Processed
+    #
+    async def mark_video_processed(self, channel_id: str, video_id: str) -> None:
+        """
+        Mark a video as successfully processed.
+        """
+        key = self._processed_key(channel_id)
+        try:
+            await self._redis.sadd(key, video_id)
+        except Exception:
+            logger.exception("Failed to mark video %s as processed for channel %s", video_id, channel_id)
+
+    async def is_video_processed(self, channel_id: str, video_id: str) -> bool:
+        """
+        Check if a video has already been processed.
+        """
+        key = self._processed_key(channel_id)
+        try:
+            return await self._redis.sismember(key, video_id)
+        except Exception:
+            logger.exception("Failed to check processed state for %s on channel %s", video_id, channel_id)
+            return False

@@ -3,9 +3,12 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List
 
+from aiokafka import ConsumerRecord
+
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.commands import Commands
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
+from contentbot.common.kafka_consumer import AsyncKafkaConsumer
 from contentbot.common.kafka_producer import AsyncKafkaProducer
 
 logger: logging.Logger = logging.getLogger("contentbot")
@@ -20,10 +23,13 @@ ACCEPTABLE_ERRORS = {
 
 
 class AsyncChatProcessor:
-    def __init__(self, sio: AsyncSocket, db: AsyncRedisDB, queue: AsyncKafkaProducer):
+    def __init__(
+        self, sio: AsyncSocket, db: AsyncRedisDB, job_queue: AsyncKafkaProducer, content_queue: AsyncKafkaConsumer
+    ):
         self._sio = sio
         self._db = db
-        self._queue = queue
+        self._job_queue = job_queue
+        self._content_queue = content_queue
 
     # -----------------------------------------------------
     # Static methods
@@ -122,8 +128,56 @@ class AsyncChatProcessor:
     async def handle_set_current(self, _) -> None:
         pass
 
-    async def handle_kafka_job(self, id: str) -> None:
-        await self._sio.add_video_to_queue(id)
+    async def handle_kafka_job(self, msg: ConsumerRecord) -> None:
+        content = msg.value
+        channel_id = content["channel_id"]
+        video_id = content["video_id"]
+        dt = content["datetime"]
+
+        if await self._db.is_video_processed(channel_id, video_id):
+            return
+
+        if await self._db.is_video_pending(channel_id, video_id):
+            return
+
+        await self._db.map_video_to_kafka_offset(video_id, msg.topic, msg.partition, msg.offset)
+
+        await self._db.mark_video_pending(channel_id, video_id)
+        await self._sio.add_video_to_queue(video_id)
+        await self._db.update_datetime(channel_id, dt)
+
+    async def handle_successful_queue(self, data: Dict) -> None:
+        video_id = self._extract_id(data)
+        channel_id = await self._db.get_channel_for_video(video_id)
+        kafka_meta = await self._db.get_kafka_offset_for_video(video_id)
+
+        if not channel_id:
+            return
+
+        await self._content_queue.commit(kafka_meta["topic"], kafka_meta["partition"], kafka_meta["offset"])
+
+        await self._db.mark_video_processed(channel_id, video_id)
+        await self._db.clear_video_pending(channel_id, video_id)
+        await self._db.clear_video_channel_map(video_id)
+        await self._db.clear_kafka_offset_map(video_id)
+
+    async def handle_failed_queue(self, data: Dict) -> None:
+        video_id = self._extract_id(data)
+        channel_id = await self._db.get_channel_for_video(video_id)
+        kafka_meta = await self._db.get_kafka_offset_for_video(video_id)
+
+        if not channel_id:
+            return
+
+        if data["msg"] in ACCEPTABLE_ERRORS:
+            await self._content_queue.commit(kafka_meta["topic"], kafka_meta["partition"], kafka_meta["offset"])
+
+            await self._db.mark_video_processed(channel_id, video_id)
+            await self._db.clear_video_pending(channel_id, video_id)
+            await self._db.clear_video_channel_map(video_id)
+            await self._db.clear_kafka_offset_map(video_id)
+        else:
+            await self._db.clear_video_pending(channel_id, video_id)
 
     # -----------------------------------------------------
     # Command handlers
@@ -142,7 +196,7 @@ class AsyncChatProcessor:
         for tag in tags:
             channels = await self._db.get_channels(tag)
             for channel in channels:
-                await self._queue.send(channel)
+                await self._job_queue.send(channel)
 
     async def _cmd_current(self) -> None:
         pass

@@ -62,6 +62,18 @@ class AsyncChatBot:
             logger.debug("setCurrent event captured: %s", data)
             await self._processor.handle_set_current(data)
 
+        @self._sio._client.event
+        def queue(data):
+            pass
+
+        @self._sio._client.event
+        def queueWarn(data):
+            pass
+
+        @self._sio._client.event
+        def queueFail(data):
+            pass
+
     async def run(self):
         """
         Connect to Socket.IO and wait forever.
