@@ -16,33 +16,18 @@ from contentbot.utils.ssl import create_ssl_context
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
+# -----------------------------------------------------
+# Helper functions
+# -----------------------------------------------------
 
-@click.group()
-@click.pass_context
-def cli(ctx: click.Context) -> None:
+
+def load_config() -> Dict:
     config_path = os.getenv("CONFIG_PATH", "contentbot.conf")
     secrets_path = os.getenv("SECRETS_PATH", "contentbot_secrets.conf")
     config = Configuration(config_path, secrets_path)
     config.read()
 
-    ctx.obj = config.to_dict()
-
-
-# -----------------------------------------------------
-# Commands
-# -----------------------------------------------------
-
-
-@cli.command
-@click.pass_context
-def chatbot(ctx: click.Context) -> None:
-    asyncio.run(run_chatbot(ctx.obj))
-
-
-@cli.command
-@click.pass_context
-def worker(ctx: click.Context) -> None:
-    asyncio.run(run_worker(ctx.obj))
+    return config.to_dict()
 
 
 # -----------------------------------------------------
@@ -113,3 +98,25 @@ async def run_worker(cfg: Dict) -> None:
     finally:
         await kafka_consumer.stop()
         await db.close()
+
+
+# -----------------------------------------------------
+# Commands
+# -----------------------------------------------------
+
+
+@click.group()
+def cli() -> None:
+    pass
+
+
+@cli.command
+def chatbot() -> None:
+    cfg = load_config()
+    asyncio.run(run_chatbot(cfg))
+
+
+@cli.command
+def worker() -> None:
+    cfg = load_config()
+    asyncio.run(run_worker(cfg))
