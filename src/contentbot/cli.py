@@ -113,7 +113,3 @@ async def run_worker(cfg: Dict) -> None:
     finally:
         await kafka_consumer.stop()
         await db.close()
-
-
-if __name__ == "__main__":
-    cli()
