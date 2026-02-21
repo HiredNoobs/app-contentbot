@@ -34,6 +34,7 @@ class AsyncChatBot:
 
         @self._sio.client.event
         async def channelOpts():
+            logger.debug("channelOpts event captured.")
             await self._processor.handle_channel_opts()
 
         @self._sio.client.event
@@ -42,18 +43,22 @@ class AsyncChatBot:
 
         @self._sio.client.event
         async def chatMsg(data):
+            logger.debug("chatMsg event captured.")
             await self._processor.handle_chat_message(data)
 
         @self._sio.client.event
         async def userJoin(data):
+            logger.debug("userJoin event captured.")
             await self._processor.handle_user_join(data)
 
         @self._sio.client.event
         async def userLeave(data):
+            logger.debug("userLeave event captured.")
             await self._processor.handle_user_leave(data)
 
         @self._sio.client.event
         async def setCurrent(data):
+            logger.debug("setCurrent event captured.")
             await self._processor.handle_set_current(data)
 
     async def run(self):
