@@ -15,12 +15,12 @@ class AsyncKafkaConsumer:
         self._ssl_context = ssl_context
         self._consumer = None
 
-    async def start(self):
+    async def start(self, auto_commit: bool) -> None:
         self._consumer = AIOKafkaConsumer(
             self._topic,
             bootstrap_servers=self._bootstrap,
             group_id=self._group_id,
-            enable_auto_commit=True,
+            enable_auto_commit=auto_commit,
             auto_offset_reset="latest",
             ssl_context=self._ssl_context,
             security_protocol="SSL",
