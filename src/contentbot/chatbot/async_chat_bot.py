@@ -31,7 +31,7 @@ class AsyncChatBot:
         @self._sio.client.event
         async def connect():
             logger.info("Socket connected.")
-            self._processor.handle_connect()
+            await self._processor.handle_connect()
 
         @self._sio.client.event
         async def channelOpts():
