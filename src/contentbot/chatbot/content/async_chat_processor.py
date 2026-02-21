@@ -13,7 +13,7 @@ logger: logging.Logger = logging.getLogger("contentbot")
 REQUIRED_PERMISSION_LEVEL = 3
 ACCEPTABLE_ERRORS = {
     "This item is already on the playlist",
-    "Cannot add age restricted videos. See: https://github.com/calzoneman/sync/wiki/Frequently-Asked-Questions#why-dont-age-restricted-youtube-videos-work",
+    "Cannot add age restricted videos. See: https://github.com/calzoneman/sync/wiki/Frequently-Asked-Questions#why-dont-age-restricted-youtube-videos-work",  # noqa: E501
     "The uploader has made this video non-embeddable",
     "This video has not been processed yet.",
 }
