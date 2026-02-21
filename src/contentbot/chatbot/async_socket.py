@@ -20,7 +20,7 @@ class AsyncSocket:
         self.client = socketio.AsyncClient()
         self.data = SIOData()
 
-    async def init_socket(self) -> str:
+    async def _init_socket(self) -> str:
         socket_conf = f"{self._url}/socketconfig/{self._channel_name}.json"
         resp = query_endpoint(socket_conf)
         servers = resp.json()
@@ -30,6 +30,10 @@ class AsyncSocket:
                 return server["url"]
 
         raise ConnectionError("Unable to find a secure socket to connect to")
+
+    async def connect(self) -> None:
+        socket_url = await self._init_socket()
+        await self.client.connect(socket_url)
 
     async def login(self) -> None:
         self.client.emit("login", {"name": self._username, "pw": self._password})
