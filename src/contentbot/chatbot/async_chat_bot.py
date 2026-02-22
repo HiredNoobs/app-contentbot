@@ -63,16 +63,19 @@ class AsyncChatBot:
             await self._processor.handle_set_current(data)
 
         @self._sio._client.event
-        def queue(data):
-            pass
+        async def queue(data):
+            logger.debug("queue event captured: %s", data)
+            await self._processor.handle_successful_queue(data)
 
         @self._sio._client.event
-        def queueWarn(data):
-            pass
+        async def queueWarn(data):
+            logger.debug("queueWarn event captured: %s", data)
+            await self._processor.handle_successful_queue(data)
 
         @self._sio._client.event
-        def queueFail(data):
-            pass
+        async def queueFail(data):
+            logger.debug("queueFail event captured: %s", data)
+            await self._processor.handle_failed_queue(data)
 
     async def run(self):
         """
