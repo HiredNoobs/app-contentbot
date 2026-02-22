@@ -24,6 +24,7 @@ class AsyncKafkaConsumer:
             auto_offset_reset="latest",
             ssl_context=self._ssl_context,
             security_protocol="SSL",
+            max_poll_interval_ms=5 * 60 * 1000,
         )
 
         # Yes this is really necessary according to mypy...
