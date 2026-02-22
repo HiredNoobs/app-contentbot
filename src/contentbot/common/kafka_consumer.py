@@ -15,7 +15,7 @@ class AsyncKafkaConsumer:
         self._ssl_context = ssl_context
         self._consumer = None
 
-    async def start(self, auto_commit: bool) -> None:
+    async def start(self, auto_commit: bool = True) -> None:
         self._consumer = AIOKafkaConsumer(
             self._topic,
             bootstrap_servers=self._bootstrap,

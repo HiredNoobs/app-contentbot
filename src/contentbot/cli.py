@@ -56,7 +56,7 @@ async def run_chatbot(cfg: Dict) -> None:
     )
 
     await kafka_producer.start()
-    await kafka_consumer.start(False)
+    await kafka_consumer.start(auto_commit=False)
 
     sio = AsyncSocket(cfg["cytube_url"], cfg["cytube_channel"], cfg["cytube_user"], cfg["cytube_pass"])
     processor = AsyncChatProcessor(sio, db, kafka_producer, kafka_consumer)
@@ -92,7 +92,7 @@ async def run_worker(cfg: Dict) -> None:
     )
 
     await kafka_producer.start()
-    await kafka_consumer.start(True)
+    await kafka_consumer.start()
 
     content_finder = ContentFinder()
 

@@ -18,8 +18,6 @@ class AsyncSocket:
         self._username = username
         self._password = password
 
-        # Only "public" for the decorators in AsyncChatBot,
-        # all functionality is in this classes methods.
         self._client = socketio.AsyncClient()
         self.data = SIOData()
 

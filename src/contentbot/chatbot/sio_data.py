@@ -20,12 +20,11 @@ class SIOData:
     _retry_cooloff_period: int = int(os.environ.get("RETRY_COOLOFF_PERIOD", 10))
 
     # Retry timestamp
-    _last_retry: float | None = None  # monotonic time
+    _last_retry: float | None = None
 
     # Shared state
     _current_media: Dict | None = None
     _users: Dict[str, int] = field(default_factory=dict)
-    _pending: List[str] = field(default_factory=list)
 
     # ------------------------------------------------------------------
     # Media

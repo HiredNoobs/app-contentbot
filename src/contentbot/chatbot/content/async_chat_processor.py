@@ -143,9 +143,12 @@ class AsyncChatProcessor:
 
         await self._db.map_video_to_kafka_offset(video_id, msg.topic, msg.partition, msg.offset)
 
-        await self._db.mark_video_pending(channel_id, video_id)
-        await self._sio.add_video_to_queue(video_id)
-        await self._db.update_datetime(channel_id, dt)
+        try:
+            await self._sio.add_video_to_queue(video_id)
+            await self._db.mark_video_pending(channel_id, video_id)
+            await self._db.update_datetime(channel_id, dt)
+        except Exception:
+            logger.exception("Failed to add video to queue")
 
     async def handle_successful_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
