@@ -50,7 +50,7 @@ class Configuration:
             self.cytube_user = secrets["cytube_user"]
             self.cytube_pass = secrets["cytube_pass"]
 
-            self.db_user = config["db_user"]
+            self.db_user = secrets["db_user"]
             self.db_pass = secrets["db_pass"]
 
             rabbitmq_user = secrets["rabbitmq_user"]
