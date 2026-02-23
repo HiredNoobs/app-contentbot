@@ -27,7 +27,6 @@ class Configuration:
         self.db_host = f"{db_host}.{domain}"
         self.db_port = config["db_port"]
         self.db_index = config["db_index"]
-        self.db_user = config["db_user"]
 
         self.db_ca_cert = config["db_ca_cert"]
         self.db_cert = config["db_cert"]
@@ -36,8 +35,6 @@ class Configuration:
         # RabbitMQ
         rabbit_host = config["rabbitmq_host"]
         rabbit_port = config["rabbitmq_port"]
-
-        self.rabbitmq_url = f"amqps://{rabbit_host}.{domain}:{rabbit_port}"
 
         self.rabbitmq_job_queue = config["rabbitmq_job_queue"]
         self.rabbitmq_result_queue = config["rabbitmq_result_queue"]
@@ -53,7 +50,13 @@ class Configuration:
             self.cytube_user = secrets["cytube_user"]
             self.cytube_pass = secrets["cytube_pass"]
 
+            self.db_user = config["db_user"]
             self.db_pass = secrets["db_pass"]
+
+            rabbitmq_user = secrets["rabbitmq_user"]
+            rabbitmq_pass = secrets["rabbitmq_pass"]
+
+        self.rabbitmq_url = f"amqps://{rabbitmq_user}:{rabbitmq_pass}@{rabbit_host}.{domain}:{rabbit_port}/"
 
     def to_dict(self) -> dict:
         return {key: value for key, value in self.__dict__.items() if not key.startswith("_")}
