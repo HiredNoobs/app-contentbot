@@ -23,7 +23,7 @@ class SIOData:
     # Shared state
     _current_media: Dict | None = None
     _users: Dict[str, int] = field(default_factory=dict)
-    _pending: Dict[str, IncomingMessage] = {}
+    _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # Media
