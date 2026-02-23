@@ -12,14 +12,14 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class AsyncSocket:
-    def __init__(self, url: str, channel_name: str, username: str, password: str):
+    def __init__(self, url: str, channel_name: str, username: str, password: str, siodata: SIOData):
         self._url = url
         self._channel_name = channel_name
         self._username = username
         self._password = password
 
         self._client = socketio.AsyncClient()
-        self.data = SIOData()
+        self.data = siodata
 
     async def _init_socket(self) -> str:
         socket_conf = f"{self._url}/socketconfig/{self._channel_name}.json"

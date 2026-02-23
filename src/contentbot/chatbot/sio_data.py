@@ -2,17 +2,15 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, Optional
+
+from aio_pika import IncomingMessage
 
 logger = logging.getLogger("contentbot")
 
 
 @dataclass
 class SIOData:
-    """
-    Shared state container for the async ChatBot.
-    """
-
     # Backoff settings
     _current_backoff: int = int(os.environ.get("BASE_RETRY_BACKOFF", 2))
     _backoff_factor: int = int(os.environ.get("RETRY_BACKOFF_FACTOR", 2))
@@ -25,6 +23,7 @@ class SIOData:
     # Shared state
     _current_media: Dict | None = None
     _users: Dict[str, int] = field(default_factory=dict)
+    _pending: Dict[str, IncomingMessage] = {}
 
     # ------------------------------------------------------------------
     # Media
@@ -56,16 +55,26 @@ class SIOData:
     # Pending queue
     # ------------------------------------------------------------------
 
-    @property
-    def pending(self) -> List[str]:
-        return self._pending
+    def get_pending(self, video_id: str) -> Optional[IncomingMessage]:
+        """
+        Returns the IncomingMessage object from RabbitMQ if
+        the video is pending, else returns None.
+        """
+        if video_id in self._pending:
+            return self._pending[video_id]
+        else:
+            return None
 
-    def add_pending(self, video_id: str) -> None:
-        self._pending.append(video_id)
+    def add_pending(self, video_id: str, msg: IncomingMessage) -> None:
+        if video_id not in self._pending:
+            self._pending[video_id] = msg
+        else:
+            # TODO: Add a custom exception for this
+            raise ValueError(f"{video_id} already pending")
 
     def remove_pending(self, video_id: str) -> None:
         try:
-            self._pending.remove(video_id)
+            del self._pending[video_id]
         except ValueError:
             pass
 

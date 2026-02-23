@@ -3,7 +3,7 @@ import logging
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.content.async_chat_processor import AsyncChatProcessor
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
-from contentbot.common.kafka_consumer import AsyncKafkaConsumer
+from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
@@ -14,12 +14,12 @@ class AsyncChatBot:
         sio: AsyncSocket,
         processor: AsyncChatProcessor,
         db: AsyncRedisDB,
-        kafka_consumer: AsyncKafkaConsumer,
+        result_consumer: AsyncRabbitMQConsumer,
     ):
         self._sio = sio
         self._processor = processor
         self._db = db
-        self._kafka_consumer = kafka_consumer
+        self._result_consumer = result_consumer
 
         self._register_handlers()
 
@@ -84,9 +84,9 @@ class AsyncChatBot:
         await self._sio.connect()
         await self._sio._client.wait()
 
-    async def consume_kafka_jobs(self):
+    async def consume_worker_results(self):
         """
-        Consume Kafka jobs and delegate to the processor.
+        Consume worker results from RabbitMQ and delegate to the processor.
         """
-        async for msg in self._kafka_consumer.consume():
-            await self._processor.handle_kafka_job(msg)
+        async for msg in self._result_consumer.consume():
+            await self._processor.consume_worker_results(msg)

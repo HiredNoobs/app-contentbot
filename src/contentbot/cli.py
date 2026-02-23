@@ -10,8 +10,9 @@ from contentbot.chatbot.async_chat_bot import AsyncChatBot
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.content.async_chat_processor import AsyncChatProcessor
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
-from contentbot.common.kafka_consumer import AsyncKafkaConsumer
-from contentbot.common.kafka_producer import AsyncKafkaProducer
+from contentbot.chatbot.sio_data import SIOData
+from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
+from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.configuration import Configuration
 from contentbot.utils.ssl import create_ssl_context
 from contentbot.worker.content_finder import ContentFinder
@@ -38,6 +39,8 @@ def load_config() -> Dict:
 
 
 async def run_chatbot(cfg: Dict) -> None:
+    siodata = SIOData()
+
     db = AsyncRedisDB(
         cfg["db_host"],
         cfg["db_port"],
@@ -49,27 +52,25 @@ async def run_chatbot(cfg: Dict) -> None:
         cfg["db_key"],
     )
 
-    kafka_ssl = create_ssl_context(cfg["kafka_ca_cert"], cfg["kafka_cert"], cfg["kafka_key"])
-    kafka_producer = AsyncKafkaProducer(cfg["kafka_bootstrap_servers"], cfg["kafka_job_topic"], kafka_ssl)
-    kafka_consumer = AsyncKafkaConsumer(
-        cfg["kafka_bootstrap_servers"], cfg["kafka_content_topic"], cfg["kafka_consumer_group"], kafka_ssl
-    )
+    rabbit_ssl = create_ssl_context(cfg["rabbitmq_ca_cert"], cfg["rabbitmq_cert"], cfg["rabbitmq_key"])
+    job_producer = AsyncRabbitMQProducer(cfg["rabbitmq_url"], cfg["rabbitmq_job_queue"], rabbit_ssl)
+    result_consumer = AsyncRabbitMQConsumer(cfg["rabbitmq_url"], cfg["rabbitmq_result_queue"], rabbit_ssl)
 
-    await kafka_producer.start()
-    await kafka_consumer.start(auto_commit=False)
+    await job_producer.start()
+    await result_consumer.start()
 
-    sio = AsyncSocket(cfg["cytube_url"], cfg["cytube_channel"], cfg["cytube_user"], cfg["cytube_pass"])
-    processor = AsyncChatProcessor(sio, db, kafka_producer, kafka_consumer)
-    bot = AsyncChatBot(sio, processor, db, kafka_consumer)
+    sio = AsyncSocket(cfg["cytube_url"], cfg["cytube_channel"], cfg["cytube_user"], cfg["cytube_pass"], siodata)
+    processor = AsyncChatProcessor(sio, siodata, db, job_producer, result_consumer)
+    bot = AsyncChatBot(sio, processor, db, result_consumer)
 
     try:
         await asyncio.gather(
             bot.run(),
-            bot.consume_kafka_jobs(),
+            bot.consume_worker_results(),
         )
     finally:
-        await kafka_producer.stop()
-        await kafka_consumer.stop()
+        await job_producer.stop()
+        await result_consumer.stop()
         await db.close()
 
 
@@ -85,28 +86,47 @@ async def run_worker(cfg: Dict) -> None:
         cfg["db_key"],
     )
 
-    kafka_ssl = create_ssl_context(cfg["kafka_ca_cert"], cfg["kafka_cert"], cfg["kafka_key"])
-    kafka_producer = AsyncKafkaProducer(cfg["kafka_bootstrap_servers"], cfg["kafka_content_topic"], kafka_ssl)
-    kafka_consumer = AsyncKafkaConsumer(
-        cfg["kafka_bootstrap_servers"], cfg["kafka_job_topic"], cfg["kafka_consumer_group"], kafka_ssl
+    rabbit_ssl = create_ssl_context(
+        cfg["rabbitmq_ca_cert"],
+        cfg["rabbitmq_cert"],
+        cfg["rabbitmq_key"],
     )
 
-    await kafka_producer.start()
-    await kafka_consumer.start()
+    job_consumer = AsyncRabbitMQConsumer(
+        cfg["rabbitmq_url"],
+        cfg["rabbitmq_job_queue"],
+        rabbit_ssl,
+    )
+
+    result_producer = AsyncRabbitMQProducer(
+        cfg["rabbitmq_url"],
+        cfg["rabbitmq_result_queue"],
+        rabbit_ssl,
+    )
+
+    await job_consumer.start()
+    await result_producer.start()
 
     content_finder = ContentFinder()
 
     try:
-        async for channel_record in kafka_consumer.consume():
+        async for msg in job_consumer.consume():
             try:
-                channel = json.loads(channel_record.value)
+                channel = json.loads(msg.body)
                 content = content_finder.find_content(channel)
+
                 for c in content:
-                    await kafka_producer.send(c)
+                    await result_producer.send(c)
+
+                await job_consumer.commit(msg)
+
             except Exception as err:
                 logger.exception("Unhandled exception: %s", err)
+                await msg.nack(requeue=False)
+
     finally:
-        await kafka_consumer.stop()
+        await job_consumer.stop()
+        await result_producer.stop()
         await db.close()
 
 

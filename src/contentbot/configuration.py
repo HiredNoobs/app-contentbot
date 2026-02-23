@@ -13,18 +13,16 @@ class Configuration:
         self._secrets_path = secrets_path
 
     def read(self) -> None:
-        """
-        Reads the config file(s) supplied to the class on initialisation
-        and creates attributes for the known options.
-        """
         with open(self._path) as file:
             config: Dict[str, Any] = yaml.safe_load(file)
 
         domain = os.getenv("DOMAIN", ".com")
 
+        # Cytube
         self.cytube_url = config["cytube_url"]
         self.cytube_channel = config["cytube_channel"]
 
+        # Database
         db_host = config["db_host"]
         self.db_host = f"{db_host}.{domain}"
         self.db_port = config["db_port"]
@@ -35,17 +33,18 @@ class Configuration:
         self.db_cert = config["db_cert"]
         self.db_key = config["db_key"]
 
-        kafka_port = config["kafka_port"]
-        kafka_bootstrap_servers = config["kafka_bootstrap_servers"].split(",")
-        self.kafka_bootstrap_servers = [f"{server}.{domain}:{kafka_port}" for server in kafka_bootstrap_servers]
+        # RabbitMQ
+        rabbit_host = config["rabbitmq_host"]
+        rabbit_port = config["rabbitmq_port"]
 
-        self.kafka_content_topic = config["kafka_content_topic"]
-        self.kafka_job_topic = config["kafka_job_topic"]
-        self.kafka_consumer_group = config["kafka_consumer_group"]
+        self.rabbitmq_url = f"amqps://{rabbit_host}.{domain}:{rabbit_port}"
 
-        self.kafka_ca_cert = config["kafka_ca_cert"]
-        self.kafka_cert = config["kafka_cert"]
-        self.kafka_key = config["kafka_key"]
+        self.rabbitmq_job_queue = config["rabbitmq_job_queue"]
+        self.rabbitmq_result_queue = config["rabbitmq_result_queue"]
+
+        self.rabbitmq_ca_cert = config["rabbitmq_ca_cert"]
+        self.rabbitmq_cert = config["rabbitmq_cert"]
+        self.rabbitmq_key = config["rabbitmq_key"]
 
         if self._secrets_path:
             with open(self._secrets_path) as file:

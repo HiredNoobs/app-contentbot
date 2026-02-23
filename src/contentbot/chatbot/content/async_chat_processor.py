@@ -4,13 +4,14 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List
 
-from aiokafka import ConsumerRecord
+from aio_pika import IncomingMessage
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.commands import Commands
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
-from contentbot.common.kafka_consumer import AsyncKafkaConsumer
-from contentbot.common.kafka_producer import AsyncKafkaProducer
+from contentbot.chatbot.sio_data import SIOData
+from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
+from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
@@ -25,12 +26,18 @@ ACCEPTABLE_ERRORS = {
 
 class AsyncChatProcessor:
     def __init__(
-        self, sio: AsyncSocket, db: AsyncRedisDB, job_queue: AsyncKafkaProducer, content_queue: AsyncKafkaConsumer
+        self,
+        sio: AsyncSocket,
+        siodata: SIOData,
+        db: AsyncRedisDB,
+        job_queue: AsyncRabbitMQProducer,
+        result_queue: AsyncRabbitMQConsumer,
     ):
         self._sio = sio
+        self._siodata = siodata
         self._db = db
         self._job_queue = job_queue
-        self._content_queue = content_queue
+        self._result_queue = result_queue
 
     # -----------------------------------------------------
     # Static methods
@@ -129,59 +136,49 @@ class AsyncChatProcessor:
     async def handle_set_current(self, _) -> None:
         pass
 
-    async def handle_kafka_job(self, msg: ConsumerRecord) -> None:
-        content = json.loads(msg.value)
+    async def consume_worker_results(self, msg: IncomingMessage) -> None:
+        content = json.loads(msg.body)
         channel_id = content["channel_id"]
         video_id = content["video_id"]
         dt = content["datetime"]
 
-        if await self._db.is_video_processed(channel_id, video_id):
-            return
-
-        if await self._db.is_video_pending(channel_id, video_id):
-            return
-
-        await self._db.map_video_to_kafka_offset(video_id, msg.topic, msg.partition, msg.offset)
+        self._siodata.add_pending(video_id, msg)
 
         try:
             await self._sio.add_video_to_queue(video_id)
-            await self._db.mark_video_pending(channel_id, video_id)
             await self._db.update_datetime(channel_id, dt)
         except Exception:
             logger.exception("Failed to add video to queue")
 
     async def handle_successful_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
-        channel_id = await self._db.get_channel_for_video(video_id)
-        kafka_meta = await self._db.get_kafka_offset_for_video(video_id)
 
-        if not channel_id:
+        msg = self._siodata.get_pending(video_id)
+        if not msg:
             return
 
-        await self._content_queue.commit(kafka_meta["topic"], kafka_meta["partition"], kafka_meta["offset"])
-
-        await self._db.mark_video_processed(channel_id, video_id)
-        await self._db.clear_video_pending(channel_id, video_id)
-        await self._db.clear_video_channel_map(video_id)
-        await self._db.clear_kafka_offset_map(video_id)
+        try:
+            await msg.ack()
+            logger.debug("Acked RabbitMQ message for video %s", video_id)
+        except Exception:
+            logger.exception("Failed to ack RabbitMQ message for %s", video_id)
+        finally:
+            self._siodata.remove_pending(video_id)
 
     async def handle_failed_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
-        channel_id = await self._db.get_channel_for_video(video_id)
-        kafka_meta = await self._db.get_kafka_offset_for_video(video_id)
 
-        if not channel_id:
+        msg = self._siodata.get_pending(video_id)
+        if not msg:
             return
 
-        if data["msg"] in ACCEPTABLE_ERRORS:
-            await self._content_queue.commit(kafka_meta["topic"], kafka_meta["partition"], kafka_meta["offset"])
-
-            await self._db.mark_video_processed(channel_id, video_id)
-            await self._db.clear_video_pending(channel_id, video_id)
-            await self._db.clear_video_channel_map(video_id)
-            await self._db.clear_kafka_offset_map(video_id)
-        else:
-            await self._db.clear_video_pending(channel_id, video_id)
+        try:
+            await msg.nack(requeue=False)
+            logger.debug("Nacked RabbitMQ message for failed video %s", video_id)
+        except Exception:
+            logger.exception("Failed to nack RabbitMQ message for %s", video_id)
+        finally:
+            self._siodata.remove_pending(video_id)
 
     # -----------------------------------------------------
     # Command handlers

@@ -7,7 +7,7 @@ readme = "README.md"
 
 dependencies = [
     "aiohttp",
-    "aiokafka",
+    "aio-pika",
     "click",
     "redis>=5.0.0",
     "requests",
