@@ -148,6 +148,15 @@ class AsyncChatProcessor:
         finally:
             self._siodata.remove_pending(video_id)
 
+    async def handle_user_list(self, data: Dict) -> None:
+        for userdata in data:
+            user = userdata["name"]
+            rank = userdata["rank"]
+            self._siodata.add_or_update_user(user, rank)
+
+        if self._siodata.only_remaining_user():
+            await self._sio.become_leader()
+
     # -----------------------------------------------------
     # Command handlers
     # -----------------------------------------------------

@@ -55,23 +55,23 @@ class AsyncChatBot:
         """
 
         @self._sio._client.event
-        async def connect():
+        async def connect() -> None:
             logger.info("Socket connected.")
             await self._processor.handle_connect()
 
         @self._sio._client.event
-        async def channelOpts(data):
+        async def channelOpts(data: Dict) -> None:
             logger.debug("channelOpts event captured: %s", data)
             await self._processor.handle_channel_opts()
 
         @self._sio._client.event
-        async def disconnect():
+        async def disconnect() -> None:
             logger.info("Socket disconnected.")
 
         # AsyncChatBot only has some extra code because
         # it needs to route to the correct handler...
         @self._sio._client.event
-        async def chatMsg(data):
+        async def chatMsg(data: Dict) -> None:
             logger.debug("chatMsg event captured: %s", data)
             if not self._should_process_chat(data):
                 return
@@ -93,39 +93,44 @@ class AsyncChatBot:
                 await self._sio.send_chat_msg(f"'{command}' is not a valid command.")
 
         @self._sio._client.event
-        async def mediaUpdate(data):
+        async def mediaUpdate(data: Dict) -> None:
             logger.debug("mediaUpdate event captured: %s", data)
             await self._processor.handle_media_update(data)
 
         @self._sio._client.event
-        async def userJoin(data):
+        async def userJoin(data: Dict) -> None:
             logger.debug("userJoin event captured: %s", data)
             await self._processor.handle_user_join(data)
 
         @self._sio._client.event
-        async def userLeave(data):
+        async def userLeave(data: Dict) -> None:
             logger.debug("userLeave event captured: %s", data)
             await self._processor.handle_user_leave(data)
 
         @self._sio._client.event
-        async def changeMedia(data):
+        async def changeMedia(data: Dict) -> None:
             logger.debug("changeMedia event captured: %s", data)
             await self._processor.handle_change_media(data)
 
         @self._sio._client.event
-        async def queue(data):
+        async def queue(data: Dict) -> None:
             logger.debug("queue event captured: %s", data)
             await self._processor.handle_successful_queue(data)
 
         @self._sio._client.event
-        async def queueWarn(data):
+        async def queueWarn(data: Dict) -> None:
             logger.debug("queueWarn event captured: %s", data)
             await self._processor.handle_successful_queue(data)
 
         @self._sio._client.event
-        async def queueFail(data):
+        async def queueFail(data: Dict) -> None:
             logger.debug("queueFail event captured: %s", data)
             await self._processor.handle_failed_queue(data)
+
+        @self._sio._client.event
+        async def userList(data: Dict) -> None:
+            logger.debug("userList event captured: %s", data)
+            await self._processor.handle_user_list(data)
 
     async def run(self):
         """
