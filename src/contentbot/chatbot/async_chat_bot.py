@@ -132,7 +132,7 @@ class AsyncChatBot:
 
         @self._sio._client.on("*")
         async def catch_all(event: str, data: Dict) -> None:
-            logger.debug("Unhandled event: [%s]: ", event, data)
+            logger.debug("Unhandled event: [%s]: %s", event, data)
 
     async def run(self):
         """
