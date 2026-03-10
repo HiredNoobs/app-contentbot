@@ -93,6 +93,11 @@ class AsyncChatBot:
                 await self._sio.send_chat_msg(f"'{command}' is not a valid command.")
 
         @self._sio._client.event
+        async def mediaUpdate(data):
+            logger.debug("mediaUpdate event captured: %s", data)
+            await self._processor.handle_media_update(data)
+
+        @self._sio._client.event
         async def userJoin(data):
             logger.debug("userJoin event captured: %s", data)
             await self._processor.handle_user_join(data)

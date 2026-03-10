@@ -88,9 +88,14 @@ class AsyncChatProcessor:
     async def handle_user_leave(self, data: Dict) -> None:
         user = data["name"]
         self._siodata.remove_user(user)
+        if self._siodata.only_remaining_user():
+            await self._sio.become_leader()
 
     async def handle_change_media(self, data: Dict) -> None:
         self._siodata.current_media = data
+
+    async def handle_media_update(self, data: Dict) -> None:
+        self._siodata.update_current_time(data["currentTime"])
 
     async def handle_new_content(self, msg: IncomingMessage) -> None:
         content = json.loads(msg.body)

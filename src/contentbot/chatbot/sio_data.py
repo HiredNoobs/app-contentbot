@@ -1,4 +1,5 @@
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Optional
@@ -27,6 +28,10 @@ class SIOData:
     def current_media(self, value: Dict) -> None:
         self._current_media = value
 
+    def update_current_time(self, value: float) -> None:
+        if self._current_media:
+            self._current_media["currentTime"] = value
+
     # ------------------------------------------------------------------
     # Users
     # ------------------------------------------------------------------
@@ -40,6 +45,11 @@ class SIOData:
 
     def remove_user(self, username: str) -> None:
         self._users.pop(username, None)
+
+    def only_remaining_user(self) -> bool:
+        if len(self._users.keys()) == 1 and list(self._users.keys())[0] == os.getenv("CYTUBE_USERNAME"):
+            return True
+        return False
 
     # ------------------------------------------------------------------
     # Pending queue

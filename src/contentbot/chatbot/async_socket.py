@@ -52,3 +52,21 @@ class AsyncSocket:
             "queue",
             {"id": id, "type": "yt", "pos": "end", "temp": True},
         )
+
+    async def become_leader(self) -> None:
+        """
+        Become leader and pause the current media.
+        """
+        await self._client.emit("assignLeader", {"name": self._username})
+
+        current = self.data.current_media
+        if not current:
+            return
+
+        current_id = current["id"]
+        current_time = current.get("currentTime", 0)
+        current_type = current["type"]
+
+        await self._client.emit(
+            "mediaUpdate", {"id": current_id, "currentTime": current_time, "type": current_type, "paused": True}
+        )
