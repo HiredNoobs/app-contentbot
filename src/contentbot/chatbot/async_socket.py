@@ -41,6 +41,7 @@ class AsyncSocket:
 
     async def login(self) -> None:
         await self._client.emit("login", {"name": self._username, "pw": self._password})
+        await self._client.emit("playerReady")
 
     async def send_chat_msg(self, message: str) -> None:
         msgs = wrap(message, MSG_LIMIT)
@@ -57,16 +58,24 @@ class AsyncSocket:
         """
         Become leader and pause the current media.
         """
+        logger.debug("Attempting to promote %s to leader.", self._username)
         await self._client.emit("assignLeader", {"name": self._username})
 
         current = self.data.current_media
         if not current:
+            logger.debug("No current media set. Skipping pause.")
             return
 
         current_id = current["id"]
         current_time = current.get("currentTime", 0)
         current_type = current["type"]
 
+        logger.debug(
+            "Pushing mediaUpdate: %s",
+            {"id": current_id, "currentTime": current_time, "type": current_type, "paused": True},
+        )
+
         await self._client.emit(
-            "mediaUpdate", {"id": current_id, "currentTime": current_time, "type": current_type, "paused": True}
+            "mediaUpdate",
+            {"id": current_id, "currentTime": current_time, "type": current_type, "paused": True},
         )
