@@ -26,7 +26,7 @@ class Player:
         else:
             self.hand.append(card)
 
-    def calculate_hand_value(self, hand: List[Dict[str, str]]) -> int:
+    def _calculate_hand_value(self, hand: List[Dict[str, str]]) -> int:
         value = 0
         num_aces = 0
         for card in hand:
@@ -42,7 +42,7 @@ class Player:
         return value
 
     def calculate_active_hand_value(self) -> int:
-        return self.calculate_hand_value(self.get_active_hand())
+        return self._calculate_hand_value(self.get_active_hand())
 
     def can_split(self) -> bool:
         """Returns a bool for whether the current hand can be split"""

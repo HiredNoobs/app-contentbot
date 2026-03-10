@@ -1,6 +1,13 @@
 import logging
+import os
+from datetime import datetime, timedelta
+from typing import Dict
 
 from contentbot.chatbot.async_socket import AsyncSocket
+from contentbot.chatbot.blackjack.async_blackjack_processor import (
+    AsyncBlackjackProcessor,
+)
+from contentbot.chatbot.commands import Commands
 from contentbot.chatbot.content.async_chat_processor import AsyncChatProcessor
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
@@ -13,15 +20,34 @@ class AsyncChatBot:
         self,
         sio: AsyncSocket,
         processor: AsyncChatProcessor,
+        blackjack_processor: AsyncBlackjackProcessor,
         db: AsyncRedisDB,
         result_consumer: AsyncRabbitMQConsumer,
     ):
         self._sio = sio
         self._processor = processor
+        self._blackjack_processor = blackjack_processor
         self._db = db
         self._result_consumer = result_consumer
 
         self._register_handlers()
+
+    @staticmethod
+    def _should_process_chat(data: Dict) -> bool:
+        username = data.get("username")
+        msg = data.get("msg", None)
+        chat_ts = datetime.fromtimestamp(data["time"] / 1000)
+
+        if not username or not msg or not chat_ts:
+            return False
+
+        if chat_ts < datetime.now() - timedelta(seconds=10):
+            return False
+
+        if username == os.getenv("CYTUBE_USERNAME"):
+            return False
+
+        return True
 
     def _register_handlers(self):
         """
@@ -42,10 +68,29 @@ class AsyncChatBot:
         async def disconnect():
             logger.info("Socket disconnected.")
 
+        # AsyncChatBot only has some extra code because
+        # it needs to route to the correct handler...
         @self._sio._client.event
         async def chatMsg(data):
             logger.debug("chatMsg event captured: %s", data)
-            await self._processor.handle_chat_message(data)
+            if not self._should_process_chat(data):
+                return
+
+            msg = data.get("msg", "")
+            msg_parts = msg.split()
+            command = msg_parts[0].casefold()
+
+            if not command.startswith(Commands.COMMAND_SYMBOL.value):
+                return
+
+            command = command[1:]
+
+            if command in Commands.STANDARD_COMMANDS.value.keys():
+                await self._processor.handle_chat_message(data)
+            elif command in Commands.BLACKJACK_COMMANDS.value.keys():
+                await self._blackjack_processor.handle_chat_message(data)
+            else:
+                await self._sio.send_chat_msg(f"'{command}' is not a valid command.")
 
         @self._sio._client.event
         async def userJoin(data):

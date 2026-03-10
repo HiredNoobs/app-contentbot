@@ -1,13 +1,10 @@
 import json
 import logging
-import os
-from datetime import datetime, timedelta
 from typing import Dict, List
 
 from aio_pika import IncomingMessage
 
 from contentbot.chatbot.async_socket import AsyncSocket
-from contentbot.chatbot.commands import Commands
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
 from contentbot.chatbot.sio_data import SIOData
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
@@ -42,7 +39,7 @@ class AsyncChatProcessor:
         self._result_queue = result_queue
 
     # -----------------------------------------------------
-    # Static methods
+    # Helper methods
     # -----------------------------------------------------
 
     def _has_permission(self, username: str) -> bool:
@@ -62,23 +59,6 @@ class AsyncChatProcessor:
         except Exception:
             raise KeyError(f"No valid ID found in response: {resp}")
 
-    @staticmethod
-    def _should_process_chat(resp: Dict) -> bool:
-        username = resp.get("username")
-        msg = resp.get("msg", None)
-        chat_ts = datetime.fromtimestamp(resp["time"] / 1000)
-
-        if not username or not msg or not chat_ts:
-            return False
-
-        if chat_ts < datetime.now() - timedelta(seconds=10):
-            return False
-
-        if username == os.getenv("CYTUBE_USERNAME"):
-            return False
-
-        return True
-
     # -----------------------------------------------------
     # Event handlers
     # -----------------------------------------------------
@@ -90,26 +70,14 @@ class AsyncChatProcessor:
         await self._sio.login()
 
     async def handle_chat_message(self, data: Dict):
-        if not self._should_process_chat(data):
-            return
-
-        username = data.get("username")
+        username = data.get("username", "")
         msg = data.get("msg", "")
 
-        logger.debug("Chat message from %s: %s", username, msg)
-
         msg_parts = msg.split()
-        command = msg_parts[0].casefold()
+        command = msg_parts[0].casefold()[1:]
         args = msg_parts[1:] if len(msg_parts) > 1 else []
 
-        if command.startswith(Commands.COMMAND_SYMBOL.value):
-            command = command[1:]
-            if command in Commands.STANDARD_COMMANDS.value.keys():
-                await self._handle_command(username, command, args)
-            elif command in Commands.BLACKJACK_COMMANDS.value.keys():
-                pass
-            else:
-                pass
+        await self._handle_command(username, command, args)
 
     async def handle_user_join(self, data: Dict) -> None:
         user = data["name"]
@@ -178,7 +146,7 @@ class AsyncChatProcessor:
     # Command handlers
     # -----------------------------------------------------
 
-    async def _handle_command(self, username, command, args: List[str]) -> None:
+    async def _handle_command(self, username: str, command: str, args: List[str]) -> None:
         match command:
             case "add":
                 if self._has_permission(username):
@@ -236,7 +204,7 @@ class AsyncChatProcessor:
         candidate_urls = {
             f"https://www.youtube.com/@{channel_name}": r'.*"browse_id","value":"(.*?)"',
             f"https://www.youtube.com/c/{channel_name}": r'.*"browse_id","value":"(.*?)"',
-            f"https://www.youtube.com/channel/{channel_id}": r'.*"channelMetadataRenderer":{"title":"(.*?)"',
+            f"https://www.youtube.com/channel/{channel_name}": r'.*"channelMetadataRenderer":{"title":"(.*?)"',
         }
 
         for url, pattern in candidate_urls.items():

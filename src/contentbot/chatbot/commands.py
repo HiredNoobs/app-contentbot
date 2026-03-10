@@ -11,19 +11,15 @@ class Commands(Enum):
         "add_tags": "Add tags to an existing channel. Usage: `add_tags CHANNEL_ID TAG1 TAG2`",
         "content": "Finds new content from all channels or tagged channels. Usage: `content` or `content TAG`",
         "current": "",
-        "christmas": "",
-        "kill": "Kills the chat bot and the DB. Usage: `kill`",
         "random": "",
         "random_word": "",
         "remove": "",
         "remove_tags": "",
-        "xmas": "",
     }
 
     BLACKJACK_COMMANDS = {
         "bet": "",
         "hit": "",
-        "hold": "",
         "join": "",
         "split": "",
         "double": "",

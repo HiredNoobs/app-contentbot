@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.blackjack.deck import Deck
@@ -7,39 +7,73 @@ from contentbot.exceptions import InvalidBlackjackState
 
 
 class BlackjackGame:
-    def __init__(self) -> None:
+    def __init__(self, sio: AsyncSocket) -> None:
         self.deck: Deck = Deck()
         self.dealer_hand: List[Dict[str, str]] = []
-        self.players: Dict[str, Player] = {}
+        self._players: Dict[str, Player] = {}
         self._state: str = "idle"
-        self._sio = AsyncSocket("", "")
+        self._sio = sio
 
-    def add_player(self, username: str, initial_balance: int = 100) -> None:
-        if username not in self.players:
-            self.players[username] = Player(username, initial_balance)
+    def start_game(self) -> None:
+        self.state = "joining"
+
+    def stop_game(self) -> None:
+        self._state = "idle"
+        self._players = {}
+        self.dealer_hand = []
+
+    def get_player(self, username: str) -> Optional[Player]:
+        return self._players.get(username)
+
+    def get_players(self) -> List[Player]:
+        return list(self._players.values())
+
+    async def add_player(self, username: str, initial_balance: int = 100) -> None:
+        if not self._state == "joining":
+            await self._sio.send_chat_msg("Cannot join at this time.")
+            return
+
+        if username not in self._players:
+            self._players[username] = Player(username, initial_balance)
+            await self._sio.send_chat_msg(f"{username} joined!")
 
     def remove_player(self, username: str) -> None:
-        self.players.pop(username, None)
+        self._players.pop(username, None)
+
+    def pre_round_checks(self) -> bool:
+        if self._state != "joining":
+            return False
+
+        if any(player.bet == 0 for player in self._players.values()):
+            return False
+
+        return True
+
+    def mid_round_checks(self) -> bool:
+        if self._state != "playing":
+            return False
+
+        return True
 
     def start_round(self) -> None:
-        if not self.players:
+        if not self._players:
             raise Exception("No players to start the round.")
 
-        self.deck = Deck()
-        self.dealer_hand = []
+        self._deck = Deck()
+        self._dealer_hand = []
         self._state = "playing"
 
         for _ in range(2):
-            for player in self.players.values():
+            for player in self._players.values():
                 if player.hands is None:
-                    player.hand.append(self.deck.draw_card())
+                    player.hand.append(self._deck.draw_card())
                 else:
-                    player.add_card_to_active_hand(self.deck.draw_card())
-            self.dealer_hand.append(self.deck.draw_card())
+                    player.add_card_to_active_hand(self._deck.draw_card())
+            self._dealer_hand.append(self._deck.draw_card())
 
     def dealer_play(self) -> None:
-        while self.calculate_hand_value(self.dealer_hand) < 17:
-            self.dealer_hand.append(self.deck.draw_card())
+        while self.calculate_hand_value(self._dealer_hand) < 17:
+            self._dealer_hand.append(self._deck.draw_card())
 
     def calculate_hand_value(self, hand: List[Dict[str, str]]) -> int:
         value = 0
@@ -57,9 +91,9 @@ class BlackjackGame:
         return value
 
     async def resolve_round(self) -> None:
-        dealer_value = self.calculate_hand_value(self.dealer_hand)
-        await self._sio.send_chat_msg(f"Dealer's hand: {self.dealer_hand} (Value: {dealer_value})")
-        for player in self.players.values():
+        dealer_value = self.calculate_hand_value(self._dealer_hand)
+        await self._sio.send_chat_msg(f"Dealer's hand: {self._dealer_hand} (Value: {dealer_value})")
+        for player in self._players.values():
             if player.hands is None:
                 hands_to_evaluate = [player.hand]
             else:
@@ -82,19 +116,23 @@ class BlackjackGame:
                     player.balance -= bet
 
         # Prepare for the next round.
-        for player in self.players.values():
+        for player in self._players.values():
             player.reset_hands()
-        self.dealer_hand = []
+        self._dealer_hand = []
         self._state = "joining"
         await self._sio.send_chat_msg(
             "Round over. Use 'join' to enter the game or 'start_blackjack' to start a new round."
         )
 
     def all_players_done(self) -> bool:
-        return all(player.finished for player in self.players.values())
+        return all(player.finished for player in self._players.values())
 
     async def place_bet(self, username: str, bet_str: str) -> None:
-        player = self.players.get(username)
+        if self._state != "joining":
+            await self._sio.send_chat_msg("Betting is not allowed at this time.")
+            return
+
+        player = self._players.get(username)
         if not player:
             await self._sio.send_chat_msg(f"Player {username} not found.")
             return
