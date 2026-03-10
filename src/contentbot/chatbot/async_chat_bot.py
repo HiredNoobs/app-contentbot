@@ -1,5 +1,4 @@
 import logging
-import os
 from datetime import datetime, timedelta
 from typing import Dict
 
@@ -130,6 +129,10 @@ class AsyncChatBot:
         async def userlist(data: Dict) -> None:
             logger.debug("userlist event captured: %s", data)
             await self._processor.handle_user_list(data)
+
+        @self._sio._client.on("*")
+        async def catch_all(event: str, data: Dict) -> None:
+            logger.debug("Unhandled event: [%s]: ", event, data)
 
     async def run(self):
         """
