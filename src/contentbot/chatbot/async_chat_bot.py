@@ -96,8 +96,8 @@ class AsyncChatBot:
             await self._processor.handle_media_update(data)
 
         @self._sio._client.event
-        async def userJoin(data: Dict) -> None:
-            logger.debug("userJoin event captured: %s", data)
+        async def addUser(data: Dict) -> None:
+            logger.debug("addUser event captured: %s", data)
             await self._processor.handle_user_join(data)
 
         @self._sio._client.event
