@@ -130,10 +130,6 @@ class AsyncChatBot:
             logger.debug("userlist event captured: %s", data)
             await self._processor.handle_user_list(data)
 
-        @self._sio._client.on("*")
-        async def catch_all(event: str, data: Dict) -> None:
-            logger.debug("Unhandled event: [%s]: %s", event, data)
-
     async def run(self):
         """
         Connect to Socket.IO and wait forever.
