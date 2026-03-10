@@ -11,10 +11,23 @@ logger = logging.getLogger("contentbot")
 
 @dataclass
 class SIOData:
-    _current_media: Dict | None = None
+    _user: Optional[str] = None
+    _current_media: Optional[Dict] = None
     _users: Dict[str, int] = field(default_factory=dict)
     _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
     _last_content_pull: Dict[str, datetime] = field(default_factory=dict)
+
+    # ------------------------------------------------------------------
+    # User
+    # ------------------------------------------------------------------
+
+    @property
+    def user(self) -> Optional[str]:
+        return self._user
+
+    @user.setter
+    def user(self, value: str) -> None:
+        self._user = value
 
     # ------------------------------------------------------------------
     # Media
@@ -47,9 +60,8 @@ class SIOData:
         self._users.pop(username, None)
 
     def only_remaining_user(self) -> bool:
-        if len(self._users.keys()) == 1 and list(self._users.keys())[0] == os.getenv("CYTUBE_USERNAME"):
-            return True
-        return False
+        users = list(self._users.keys())
+        return len(users) == 1 and users[0] == self._user
 
     # ------------------------------------------------------------------
     # Pending queue

@@ -44,6 +44,7 @@ def load_config() -> Dict:
 
 async def run_chatbot(cfg: Dict) -> None:
     siodata = SIOData()
+    siodata.user = cfg["cytube_user"]
 
     db = AsyncRedisDB(
         cfg["db_host"],

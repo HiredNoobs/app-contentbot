@@ -32,8 +32,7 @@ class AsyncChatBot:
 
         self._register_handlers()
 
-    @staticmethod
-    def _should_process_chat(data: Dict) -> bool:
+    def _should_process_chat(self, data: Dict) -> bool:
         username = data.get("username")
         msg = data.get("msg", None)
         chat_ts = datetime.fromtimestamp(data["time"] / 1000)
@@ -44,7 +43,7 @@ class AsyncChatBot:
         if chat_ts < datetime.now() - timedelta(seconds=10):
             return False
 
-        if username == os.getenv("CYTUBE_USERNAME"):
+        if username == self._sio.data.user:
             return False
 
         return True
