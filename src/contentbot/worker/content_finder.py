@@ -8,7 +8,7 @@ from bs4 import element
 
 from contentbot.utils.api_query import query_endpoint
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class ContentFinder:

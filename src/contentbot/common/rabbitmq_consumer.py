@@ -3,7 +3,13 @@ import ssl
 from typing import AsyncGenerator, Optional
 
 import aio_pika
-from aio_pika import IncomingMessage, RobustChannel, RobustConnection, RobustQueue
+from aio_pika import IncomingMessage, RobustQueue
+from aio_pika.abc import (
+    AbstractChannel,
+    AbstractIncomingMessage,
+    AbstractQueue,
+    AbstractRobustConnection,
+)
 
 logger = logging.getLogger("contentbot")
 
@@ -19,9 +25,9 @@ class AsyncRabbitMQConsumer:
         self._queue_name = queue_name
         self._ssl_context = ssl_context
 
-        self._connection: Optional[RobustConnection] = None
-        self._channel: Optional[RobustChannel] = None
-        self._queue: Optional[RobustQueue] = None
+        self._connection: Optional[AbstractRobustConnection] = None
+        self._channel: Optional[AbstractChannel] = None
+        self._queue: Optional[AbstractQueue] = None
 
     async def start(self) -> None:
         """
@@ -43,7 +49,7 @@ class AsyncRabbitMQConsumer:
 
         logger.info(f"RabbitMQ consumer started for queue {self._queue_name}")
 
-    async def consume(self) -> AsyncGenerator[IncomingMessage, None]:
+    async def consume(self) -> AsyncGenerator[AbstractIncomingMessage, None]:
         """
         Async generator yielding messages from RabbitMQ.
         Manual ack is expected via msg.ack().
@@ -56,7 +62,7 @@ class AsyncRabbitMQConsumer:
                 logger.debug("Received data from RabbitMQ: %s", msg.body)
                 yield msg
 
-    async def commit(self, msg: IncomingMessage) -> None:
+    async def commit(self, msg: AbstractIncomingMessage) -> None:
         """
         Acknowledge a message.
         """

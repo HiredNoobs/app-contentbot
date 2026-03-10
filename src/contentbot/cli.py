@@ -16,6 +16,7 @@ from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.configuration import Configuration
 from contentbot.utils.ssl import create_ssl_context
 from contentbot.worker.content_finder import ContentFinder
+from contentbot.worker.random_finder import RandomFinder
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
@@ -66,7 +67,7 @@ async def run_chatbot(cfg: Dict) -> None:
     try:
         await asyncio.gather(
             bot.run(),
-            bot.consume_worker_results(),
+            bot.read_content_queue(),
         )
     finally:
         await job_producer.stop()
@@ -108,18 +109,27 @@ async def run_worker(cfg: Dict) -> None:
     await result_producer.start()
 
     content_finder = ContentFinder()
+    random_finder = RandomFinder()
 
     try:
         async for msg in job_consumer.consume():
             try:
-                channel = json.loads(msg.body)
-                content = content_finder.find_content(channel)
+                job = json.loads(msg.body)
+
+                content = None
+                if "channel_id" in job.keys():
+                    content = content_finder.find_content(job)
+                elif "random_size" in job.keys():
+                    content = [random_finder.find_random(job["random_size"], job["random_word"])]
+
+                if not content:
+                    await job_consumer.commit(msg)
+                    continue
 
                 for c in content:
                     await result_producer.send(c)
 
                 await job_consumer.commit(msg)
-
             except Exception as err:
                 logger.exception("Unhandled exception: %s", err)
                 await msg.nack(requeue=False)

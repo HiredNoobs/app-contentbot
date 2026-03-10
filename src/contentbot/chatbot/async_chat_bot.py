@@ -58,9 +58,9 @@ class AsyncChatBot:
             await self._processor.handle_user_leave(data)
 
         @self._sio._client.event
-        async def setCurrent(data):
-            logger.debug("setCurrent event captured: %s", data)
-            await self._processor.handle_set_current(data)
+        async def changeMedia(data):
+            logger.debug("changeMedia event captured: %s", data)
+            await self._processor.handle_change_media(data)
 
         @self._sio._client.event
         async def queue(data):
@@ -84,9 +84,9 @@ class AsyncChatBot:
         await self._sio.connect()
         await self._sio._client.wait()
 
-    async def consume_worker_results(self):
+    async def read_content_queue(self):
         """
         Consume worker results from RabbitMQ and delegate to the processor.
         """
         async for msg in self._result_consumer.consume():
-            await self._processor.consume_worker_results(msg)
+            await self._processor.handle_new_content(msg)

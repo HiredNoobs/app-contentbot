@@ -12,6 +12,8 @@ from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
 from contentbot.chatbot.sio_data import SIOData
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
 from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
+from contentbot.utils.api_query import get_data_from_pattern
+from contentbot.utils.yt import clean_yt_string
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
@@ -109,46 +111,35 @@ class AsyncChatProcessor:
             else:
                 pass
 
-    async def _handle_command(self, username, command, args):
-        match command:
-            case "add":
-                if self._has_permission(username):
-                    await self._cmd_add_channel(args)
-            case "add_tags":
-                if self._has_permission(username):
-                    await self._cmd_add_tags(args)
-            case "content":
-                await self._cmd_content_search(args)
-            case "current":
-                await self._cmd_current()
-            case "random":
-                await self._cmd_random()
-            case "remove_tags":
-                if self._has_permission(username):
-                    await self._cmd_remove_tags(args)
+    async def handle_user_join(self, data: Dict) -> None:
+        user = data["name"]
+        rank = data["rank"]
+        self._siodata.add_or_update_user(user, rank)
 
-    async def handle_user_join(self, username: str) -> None:
-        pass
+    async def handle_user_leave(self, data: Dict) -> None:
+        user = data["name"]
+        self._siodata.remove_user(user)
 
-    async def handle_user_leave(self, username: str) -> None:
-        pass
+    async def handle_change_media(self, data: Dict) -> None:
+        self._siodata.current_media = data
 
-    async def handle_set_current(self, _) -> None:
-        pass
-
-    async def consume_worker_results(self, msg: IncomingMessage) -> None:
+    async def handle_new_content(self, msg: IncomingMessage) -> None:
         content = json.loads(msg.body)
-        channel_id = content["channel_id"]
         video_id = content["video_id"]
-        dt = content["datetime"]
+
+        # Random videos don't include channel details or a dt to update
+        channel_id = content.get("channel_id")
+        dt = content.get("datetime")
 
         self._siodata.add_pending(video_id, msg)
 
         try:
             await self._sio.add_video_to_queue(video_id)
-            await self._db.update_datetime(channel_id, dt)
+            if channel_id and dt:
+                await self._db.update_datetime(channel_id, dt)
         except Exception:
             logger.exception("Failed to add video to queue")
+            await msg.nack(requeue=True)
 
     async def handle_successful_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
@@ -173,8 +164,11 @@ class AsyncChatProcessor:
             return
 
         try:
-            await msg.nack(requeue=False)
-            logger.debug("Nacked RabbitMQ message for failed video %s", video_id)
+            logger.debug("Nacking RabbitMQ message for failed video %s", video_id)
+            if msg.body in ACCEPTABLE_ERRORS:
+                await msg.nack(requeue=False)
+            else:
+                await msg.nack(requeue=True)
         except Exception:
             logger.exception("Failed to nack RabbitMQ message for %s", video_id)
         finally:
@@ -184,11 +178,77 @@ class AsyncChatProcessor:
     # Command handlers
     # -----------------------------------------------------
 
-    async def _cmd_add_channel(self, channel_name: str) -> None:
-        pass
+    async def _handle_command(self, username, command, args: List[str]) -> None:
+        match command:
+            case "add":
+                if self._has_permission(username):
+                    if not args:
+                        await self._sio.send_chat_msg("No channels provided.")
+                        return
 
-    async def _cmd_add_tags(self, channel_name: str, tags: str) -> None:
-        pass
+                    for channel in args:
+                        await self._cmd_add_channel(channel)
+                else:
+                    await self._sio.send_chat_msg("You don't have permission to do that.")
+            case "add_tags":
+                if self._has_permission(username):
+                    if len(args) < 2:
+                        await self._sio.send_chat_msg("Missing args for add_tags.")
+                        return
+
+                    channel = args[0]
+                    tags = args[1:]
+                    await self._db.add_tags(channel, tags)
+                else:
+                    await self._sio.send_chat_msg("You don't have permission to do that.")
+            case "content":
+                await self._cmd_content_search(args)
+            case "current":
+                await self._cmd_current()
+            case "random" | "random_word":
+                try:
+                    size = int(args[0]) if args else 3
+                except ValueError:
+                    size = 3
+
+                if command == "random_word":
+                    word = True
+                else:
+                    word = False
+
+                await self._cmd_random(size, word)
+            case "remove_tags":
+                if self._has_permission(username):
+                    if len(args) < 2:
+                        await self._sio.send_chat_msg("Missing args for remove_tags.")
+                        return
+
+                    channel = args[0]
+                    tags = args[1:]
+                    await self._db.remove_tags(channel, tags)
+                else:
+                    await self._sio.send_chat_msg("You don't have permission to do that.")
+
+    async def _cmd_add_channel(self, channel_name: str) -> None:
+        channel_name = clean_yt_string(channel_name)
+
+        cookies = {"CONSENT": "YES+1"}
+        candidate_urls = {
+            f"https://www.youtube.com/@{channel_name}": r'.*"browse_id","value":"(.*?)"',
+            f"https://www.youtube.com/c/{channel_name}": r'.*"browse_id","value":"(.*?)"',
+            f"https://www.youtube.com/channel/{channel_id}": r'.*"channelMetadataRenderer":{"title":"(.*?)"',
+        }
+
+        for url, pattern in candidate_urls.items():
+            channel_id = get_data_from_pattern(url, pattern, cookies=cookies)
+            if channel_id:
+                break
+        else:
+            await self._sio.send_chat_msg(f"Couldn't find '{channel_name}'")
+            return
+
+        await self._sio.send_chat_msg(f"Adding '{channel_name}' to DB.")
+        await self._db.add_channel(channel_id, channel_name)
 
     async def _cmd_content_search(self, tags: List) -> None:
         if not tags:
@@ -200,7 +260,22 @@ class AsyncChatProcessor:
                 await self._job_queue.send(channel)
 
     async def _cmd_current(self) -> None:
-        pass
+        current = self._sio.data.current_media
+        if not current:
+            return None
 
-    async def _cmd_random(self) -> None:
-        pass
+        video_id = current["id"]
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        desc = get_data_from_pattern(
+            url, r'.*"description":{"simpleText":"(.*?)"', script_tag_name="ytInitialPlayerResponse"
+        )
+        if desc:
+            desc = desc.replace("\\n", " ")
+        else:
+            desc = "Description not available."
+
+        await self._sio.send_chat_msg(desc)
+
+    async def _cmd_random(self, size: int, word: bool) -> None:
+        d = {"random_size": size, "random_word": word}
+        await self._job_queue.send(d)
