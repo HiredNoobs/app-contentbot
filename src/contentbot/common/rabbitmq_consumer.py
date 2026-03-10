@@ -3,7 +3,6 @@ import ssl
 from typing import AsyncGenerator, Optional
 
 import aio_pika
-from aio_pika import IncomingMessage, RobustQueue
 from aio_pika.abc import (
     AbstractChannel,
     AbstractIncomingMessage,
