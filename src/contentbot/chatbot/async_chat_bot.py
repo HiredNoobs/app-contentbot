@@ -128,8 +128,8 @@ class AsyncChatBot:
             await self._processor.handle_failed_queue(data)
 
         @self._sio._client.event
-        async def userList(data: Dict) -> None:
-            logger.debug("userList event captured: %s", data)
+        async def userlist(data: Dict) -> None:
+            logger.debug("userlist event captured: %s", data)
             await self._processor.handle_user_list(data)
 
     async def run(self):
