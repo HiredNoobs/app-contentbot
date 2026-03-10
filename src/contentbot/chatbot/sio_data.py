@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Dict, Optional
 
 from aio_pika import IncomingMessage
@@ -12,6 +13,7 @@ class SIOData:
     _current_media: Dict | None = None
     _users: Dict[str, int] = field(default_factory=dict)
     _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
+    _last_content_pull: Dict[str, datetime] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # Media
@@ -65,3 +67,17 @@ class SIOData:
             del self._pending[video_id]
         except ValueError:
             pass
+
+    # ------------------------------------------------------------------
+    # Content
+    # ------------------------------------------------------------------
+
+    def get_last_content_pull(self, tag: Optional[str]) -> Optional[datetime]:
+        if tag is None:
+            tag = "all"
+        return self._last_content_pull.get(tag)
+
+    def update_last_content_pull(self, tag: Optional[str], new_dt: datetime) -> None:
+        if tag is None:
+            tag = "all"
+        self._last_content_pull[tag] = new_dt

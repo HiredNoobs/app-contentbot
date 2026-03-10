@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timedelta
 from typing import Dict, List
 
 from aio_pika import IncomingMessage
@@ -223,7 +224,13 @@ class AsyncChatProcessor:
             tags = [None]
 
         for tag in tags:
-            channels = await self._db.get_channels(tag)
+            # Stops content jobs being added over and over again
+            last_pull = self._siodata.get_last_content_pull(tag)
+            if last_pull:
+                if last_pull < datetime.now() - timedelta(minutes=5):
+                    continue
+
+            channels = await self._db.get_channels(tag=tag)
             for channel in channels:
                 await self._job_queue.send(channel)
 
