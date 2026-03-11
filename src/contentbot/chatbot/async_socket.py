@@ -18,7 +18,7 @@ class AsyncSocket:
         self._username = username
         self._password = password
 
-        self._client = socketio.AsyncClient()
+        self._client = socketio.AsyncClient(engineio_logger=logger)
         self.data = siodata
 
     async def _init_socket(self) -> str:
