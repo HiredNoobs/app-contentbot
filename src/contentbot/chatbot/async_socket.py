@@ -34,7 +34,7 @@ class AsyncSocket:
 
     async def connect(self) -> None:
         socket_url = await self._init_socket()
-        await self._client.connect(socket_url)
+        await self._client.connect(socket_url, retry=True)
 
     async def join_channel(self) -> None:
         await self._client.emit("joinChannel", {"name": self._channel_name})
@@ -42,6 +42,10 @@ class AsyncSocket:
     async def login(self) -> None:
         await self._client.emit("login", {"name": self._username, "pw": self._password})
         await self._client.emit("playerReady")
+        # This is sent by the client during the login, not sure what it does as it doesn't appear to be
+        # handled on the server side. Mainly adding it to test if anything changes...
+        # https://github.com/calzoneman/sync/blob/589f999a9c526bf773a8b21ecf29ba30faf14739/www/js/callbacks.js#L472
+        await self._client.emit("initUserPLCallbacks")
 
     async def send_chat_msg(self, message: str) -> None:
         msgs = wrap(message, MSG_LIMIT)
