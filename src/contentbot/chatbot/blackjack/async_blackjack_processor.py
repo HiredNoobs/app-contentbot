@@ -3,22 +3,12 @@ from typing import Dict, List
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.blackjack.blackjack import BlackjackGame
 
-REQUIRED_PERMISSION_LEVEL = 3
-
 
 class AsyncBlackjackProcessor:
     def __init__(self, sio: AsyncSocket) -> None:
         self._sio = sio
 
         self._blackjack = BlackjackGame(sio)
-
-    # -----------------------------------------------------
-    # Helper methods
-    # -----------------------------------------------------
-
-    # This is an exact copy of the same method in AsyncChatProcessor...
-    def _has_permission(self, username: str) -> bool:
-        return self._sio.data.users.get(username, 0) >= REQUIRED_PERMISSION_LEVEL
 
     # -----------------------------------------------------
     # Event handlers
@@ -66,12 +56,12 @@ class AsyncBlackjackProcessor:
                 if self._blackjack.mid_round_checks():
                     await self._cmd_stand(username)
             case "init_blackjack":
-                if self._has_permission(username):
+                if self._sio.data.is_user_admin(username):
                     await self._cmd_init_blackjack()
                 else:
                     await self._sio.send_chat_msg("You don't have permission to do that.")
             case "start_blackjack":
-                if self._has_permission(username):
+                if self._sio.data.is_user_admin(username):
                     if not self._blackjack.pre_round_checks():
                         await self._sio.send_chat_msg("Round not ready to start...")
                         return
@@ -79,7 +69,7 @@ class AsyncBlackjackProcessor:
                 else:
                     await self._sio.send_chat_msg("You don't have permission to do that.")
             case "stop_blackjack":
-                if self._has_permission(username):
+                if self._sio.data.is_user_admin(username):
                     await self._cmd_stop_blackjack()
                 else:
                     await self._sio.send_chat_msg("You don't have permission to do that.")

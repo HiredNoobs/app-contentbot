@@ -111,6 +111,10 @@ class AsyncChatBot:
             await self._processor.handle_change_media(data)
 
         @self._sio._client.event
+        async def login(data: Dict) -> None:
+            await self._processor.handle_successful_login(data)
+
+        @self._sio._client.event
         async def queue(data: Dict) -> None:
             logger.debug("queue event captured: %s", data)
             await self._processor.handle_successful_queue(data)

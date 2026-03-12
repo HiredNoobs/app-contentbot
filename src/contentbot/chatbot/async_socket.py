@@ -1,6 +1,7 @@
 import logging
 import os
 from textwrap import wrap
+from typing import Dict, Optional
 
 import socketio
 
@@ -41,11 +42,19 @@ class AsyncSocket:
 
     async def login(self) -> None:
         await self._client.emit("login", {"name": self._username, "pw": self._password})
-        await self._client.emit("playerReady")
-        # This is sent by the client during the login, not sure what it does as it doesn't appear to be
-        # handled on the server side. Mainly adding it to test if anything changes...
-        # https://github.com/calzoneman/sync/blob/589f999a9c526bf773a8b21ecf29ba30faf14739/www/js/callbacks.js#L472
-        await self._client.emit("initUserPLCallbacks")
+
+    async def emit(self, event: str, data: Optional[Dict] = None) -> None:
+        """
+        Generic emit wrapper method.
+
+        This should be used for one off emits, and ideally those
+        events don't take any data (e.g. playerReader). Anything else
+        should get it's own method to keep all the logic together.
+        """
+        if data:
+            await self._client.emit(event, data)
+        else:
+            await self._client.emit(event)
 
     async def send_chat_msg(self, message: str) -> None:
         msgs = wrap(message, MSG_LIMIT)
@@ -63,6 +72,14 @@ class AsyncSocket:
         Become leader and pause the current media.
         """
         logger.debug("Attempting to promote %s to leader.", self._username)
+
+        # Obviously this can just be the user not having admin but it can
+        # also be the bot responding to events before the login is complete
+        # (this only seems to be an issue on socket reconnect.)
+        if not self.data.is_user_admin(self._username):
+            logger.debug("%s is not an admin.", self._username)
+            return
+
         await self._client.emit("assignLeader", {"name": self._username})
 
         current = self.data.current_media

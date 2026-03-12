@@ -15,7 +15,6 @@ from contentbot.utils.yt import clean_yt_string
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
-REQUIRED_PERMISSION_LEVEL = 3
 ACCEPTABLE_ERRORS = {
     "This item is already on the playlist",
     "Cannot add age restricted videos. See: https://github.com/calzoneman/sync/wiki/Frequently-Asked-Questions#why-dont-age-restricted-youtube-videos-work",  # noqa: E501
@@ -42,9 +41,6 @@ class AsyncChatProcessor:
     # -----------------------------------------------------
     # Helper methods
     # -----------------------------------------------------
-
-    def _has_permission(self, username: str) -> bool:
-        return self._sio.data.users.get(username, 0) >= REQUIRED_PERMISSION_LEVEL
 
     @staticmethod
     def _extract_id(resp: Dict) -> str:
@@ -115,6 +111,16 @@ class AsyncChatProcessor:
             logger.exception("Failed to add video to queue")
             await msg.nack(requeue=True)
 
+    async def handle_successful_login(self, data: Dict) -> None:
+        # playerReady tells the server to start sending changeMedia events.
+        await self._sio.emit("playerReady")
+        # This is sent by the client during the login, not sure what it does as it doesn't appear to be
+        # handled on the server side. Mainly adding it to test if anything changes...
+        # https://github.com/calzoneman/sync/blob/589f999a9c526bf773a8b21ecf29ba30faf14739/www/js/callbacks.js#L472
+        # Also based on the current implementation of the bot, guest should always be false.
+        if not data["guest"]:
+            await self._sio.emit("initUserPLCallbacks")
+
     async def handle_successful_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
 
@@ -164,7 +170,7 @@ class AsyncChatProcessor:
     async def _handle_command(self, username: str, command: str, args: List[str]) -> None:
         match command:
             case "add":
-                if self._has_permission(username):
+                if self._sio.data.is_user_admin(username):
                     if not args:
                         await self._sio.send_chat_msg("No channels provided.")
                         return
@@ -174,7 +180,7 @@ class AsyncChatProcessor:
                 else:
                     await self._sio.send_chat_msg("You don't have permission to do that.")
             case "add_tags":
-                if self._has_permission(username):
+                if self._sio.data.is_user_admin(username):
                     if len(args) < 2:
                         await self._sio.send_chat_msg("Missing args for add_tags.")
                         return
@@ -201,7 +207,7 @@ class AsyncChatProcessor:
 
                 await self._cmd_random(size, word)
             case "remove_tags":
-                if self._has_permission(username):
+                if self._sio.data.is_user_admin(username):
                     if len(args) < 2:
                         await self._sio.send_chat_msg("Missing args for remove_tags.")
                         return

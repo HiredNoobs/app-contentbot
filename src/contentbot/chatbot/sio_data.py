@@ -15,6 +15,7 @@ class SIOData:
     _users: Dict[str, int] = field(default_factory=dict)
     _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
     _last_content_pull: Dict[str, datetime] = field(default_factory=dict)
+    _admin_permission_level = 3
 
     # ------------------------------------------------------------------
     # User
@@ -57,6 +58,9 @@ class SIOData:
 
     def remove_user(self, username: str) -> None:
         self._users.pop(username, None)
+
+    def is_user_admin(self, username: str) -> bool:
+        return self.users.get(username, 0) >= self._admin_permission_level
 
     def only_remaining_user(self) -> bool:
         users = list(self._users.keys())
