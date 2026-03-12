@@ -15,7 +15,12 @@ class SIOData:
     _users: Dict[str, int] = field(default_factory=dict)
     _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
     _last_content_pull: Dict[str, datetime] = field(default_factory=dict)
+
+    # Any checks for Cytube permissions should use the _channel_perms
+    # but interally the bot reuses the admin/mod levels for some commands.
+    _channel_permissions: Dict[str, int] = field(default_factory=dict)
     _admin_permission_level = 3
+    _moderator_permission_level = 2
 
     # ------------------------------------------------------------------
     # User
@@ -59,8 +64,20 @@ class SIOData:
     def remove_user(self, username: str) -> None:
         self._users.pop(username, None)
 
+    def has_permission(self, username: str, permission: str) -> bool:
+        """
+        Checks if the user has access to a certain permission.
+
+        If the users rank is missing and/or the channel permissions are missing,
+        this will always return False to avoid getting the bot kicked.
+        """
+        return self._users.get(username, 0) >= self._channel_permissions.get(permission, 100)
+
     def is_user_admin(self, username: str) -> bool:
         return self.users.get(username, 0) >= self._admin_permission_level
+
+    def is_user_moderator(self, username: str) -> bool:
+        return self.users.get(username, 0) >= self._moderator_permission_level
 
     def only_remaining_user(self) -> bool:
         users = list(self._users.keys())
@@ -106,3 +123,15 @@ class SIOData:
         if tag is None:
             tag = "all"
         self._last_content_pull[tag] = new_dt
+
+    # ------------------------------------------------------------------
+    # Permissions
+    # ------------------------------------------------------------------
+
+    @property
+    def channel_permissions(self) -> Dict[str, int]:
+        return self._channel_permissions
+
+    @channel_permissions.setter
+    def channel_permissions(self, permissions: Dict[str, int]) -> None:
+        self._channel_permissions = permissions

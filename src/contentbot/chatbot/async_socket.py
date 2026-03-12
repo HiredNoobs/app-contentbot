@@ -76,8 +76,8 @@ class AsyncSocket:
         # Obviously this can just be the user not having admin but it can
         # also be the bot responding to events before the login is complete
         # (this only seems to be an issue on socket reconnect.)
-        if not self.data.is_user_admin(self._username):
-            logger.debug("%s is not an admin.", self._username)
+        if not self.data.has_permission(self._username, "leaderctl"):
+            logger.debug("%s does not have leaderctl permissions.", self._username)
             return
 
         await self._client.emit("assignLeader", {"name": self._username})

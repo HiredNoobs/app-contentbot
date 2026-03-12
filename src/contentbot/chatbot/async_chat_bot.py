@@ -112,7 +112,17 @@ class AsyncChatBot:
 
         @self._sio._client.event
         async def login(data: Dict) -> None:
-            await self._processor.handle_successful_login(data)
+            logger.debug("login event captured: %s", data)
+            if data["success"]:
+                await self._processor.handle_successful_login(data)
+            else:
+                # TODO: Add some handling here. Bot should probably exit?
+                logger.error("Login failed.")
+
+        @self._sio._client.event
+        async def setPermissions(data: Dict) -> None:
+            logger.debug("setPermissions event captured: %s", data)
+            self._processor.handle_set_permissions(data)
 
         @self._sio._client.event
         async def queue(data: Dict) -> None:

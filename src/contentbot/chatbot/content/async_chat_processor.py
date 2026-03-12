@@ -111,13 +111,16 @@ class AsyncChatProcessor:
             logger.exception("Failed to add video to queue")
             await msg.nack(requeue=True)
 
-    async def handle_successful_login(self, data: Dict) -> None:
+    async def handle_successful_login(self, _: Dict) -> None:
         # playerReady tells the server to start sending changeMedia events.
         await self._sio.emit("playerReady")
         # This is sent by the client during the login, not sure what it does as it doesn't appear to be
         # handled on the server side. Mainly adding it to test if anything changes...
         # https://github.com/calzoneman/sync/blob/589f999a9c526bf773a8b21ecf29ba30faf14739/www/js/callbacks.js#L472
         await self._sio.emit("initUserPLCallbacks")
+
+    def handle_set_permissions(self, data: Dict) -> None:
+        self._sio.data.channel_permissions = data
 
     async def handle_successful_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
@@ -189,7 +192,8 @@ class AsyncChatProcessor:
                 else:
                     await self._sio.send_chat_msg("You don't have permission to do that.")
             case "content":
-                await self._cmd_content_search(args)
+                if self._sio.data.is_user_moderator(username):
+                    await self._cmd_content_search(args)
             case "current":
                 await self._cmd_current()
             case "random" | "random_word":
