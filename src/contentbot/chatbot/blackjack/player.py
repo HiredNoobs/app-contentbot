@@ -1,6 +1,7 @@
 from typing import Dict, List
 
 from contentbot.chatbot.blackjack.deck import Deck
+from contentbot.chatbot.blackjack.utils import calculate_hand_value
 
 
 class Player:
@@ -26,23 +27,8 @@ class Player:
         else:
             self.hand.append(card)
 
-    def _calculate_hand_value(self, hand: List[Dict[str, str]]) -> int:
-        value = 0
-        num_aces = 0
-        for card in hand:
-            rank = card["rank"]
-            if rank in ["J", "Q", "K"]:
-                value += 10
-            elif rank == "A":
-                num_aces += 1
-            else:
-                value += int(rank)
-        for _ in range(num_aces):
-            value += 11 if value + 11 <= 21 else 1
-        return value
-
     def calculate_active_hand_value(self) -> int:
-        return self._calculate_hand_value(self.get_active_hand())
+        return calculate_hand_value(self.get_active_hand())
 
     def can_split(self) -> bool:
         """Returns a bool for whether the current hand can be split"""

@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.blackjack.deck import Deck
 from contentbot.chatbot.blackjack.player import Player
+from contentbot.chatbot.blackjack.utils import calculate_hand_value
 from contentbot.exceptions import InvalidBlackjackState
 
 
@@ -59,40 +60,25 @@ class BlackjackGame:
         if not self._players:
             raise Exception("No players to start the round.")
 
-        self._deck = Deck()
-        self._dealer_hand = []
+        self.deck = Deck()
+        self.dealer_hand = []
         self._state = "playing"
 
         for _ in range(2):
             for player in self._players.values():
                 if player.hands is None:
-                    player.hand.append(self._deck.draw_card())
+                    player.hand.append(self.deck.draw_card())
                 else:
-                    player.add_card_to_active_hand(self._deck.draw_card())
-            self._dealer_hand.append(self._deck.draw_card())
+                    player.add_card_to_active_hand(self.deck.draw_card())
+            self.dealer_hand.append(self.deck.draw_card())
 
     def dealer_play(self) -> None:
-        while self.calculate_hand_value(self._dealer_hand) < 17:
-            self._dealer_hand.append(self._deck.draw_card())
-
-    def calculate_hand_value(self, hand: List[Dict[str, str]]) -> int:
-        value = 0
-        num_aces = 0
-        for card in hand:
-            rank = card["rank"]
-            if rank in ["J", "Q", "K"]:
-                value += 10
-            elif rank == "A":
-                num_aces += 1
-            else:
-                value += int(rank)
-        for _ in range(num_aces):
-            value += 11 if value + 11 <= 21 else 1
-        return value
+        while calculate_hand_value(self.dealer_hand) < 17:
+            self.dealer_hand.append(self.deck.draw_card())
 
     async def resolve_round(self) -> None:
-        dealer_value = self.calculate_hand_value(self._dealer_hand)
-        await self._sio.send_chat_msg(f"Dealer's hand: {self._dealer_hand} (Value: {dealer_value})")
+        dealer_value = calculate_hand_value(self.dealer_hand)
+        await self._sio.send_chat_msg(f"Dealer's hand: {self.dealer_hand} (Value: {dealer_value})")
         for player in self._players.values():
             if player.hands is None:
                 hands_to_evaluate = [player.hand]
@@ -100,7 +86,7 @@ class BlackjackGame:
                 hands_to_evaluate = player.hands
 
             for hand in hands_to_evaluate:
-                player_value = player.calculate_hand_value(hand)
+                player_value = calculate_hand_value(hand)
                 bet = player.bet
 
                 if player_value > 21:
@@ -118,7 +104,7 @@ class BlackjackGame:
         # Prepare for the next round.
         for player in self._players.values():
             player.reset_hands()
-        self._dealer_hand = []
+        self.dealer_hand = []
         self._state = "joining"
         await self._sio.send_chat_msg(
             "Round over. Use 'join' to enter the game or 'start_blackjack' to start a new round."

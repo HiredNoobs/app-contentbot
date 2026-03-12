@@ -12,6 +12,11 @@ A chatbot for Cytube focusing on automatically tracking and adding new content f
 $ python3 -m venv venv
 $ source venv/bin/activate  # For Windows: .\venv\Scripts\activate
 $ python3 -m pip install .[dev]
+
+# Run tests:
+$ python3 -m pytest --cov=contentbot tests
+$ flake8 src/contentbot
+$ mypy src/contentbot
 ```
 
 ### Prod
