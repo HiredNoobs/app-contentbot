@@ -8,7 +8,6 @@ import socketio
 from contentbot.chatbot.sio_data import SIOData
 from contentbot.utils.api_query import query_endpoint
 
-MSG_LIMIT = int(os.getenv("CYTUBE_MSG_LIMIT", "80"))
 logger: logging.Logger = logging.getLogger("contentbot")
 
 
@@ -21,6 +20,8 @@ class AsyncSocket:
 
         self._client = socketio.AsyncClient(engineio_logger=logger)
         self.data = siodata
+
+        self._message_limit = int(os.getenv("CYTUBE_MSG_LIMIT", "80"))
 
     async def _init_socket(self) -> str:
         socket_conf = f"{self._url}/socketconfig/{self._channel_name}.json"
@@ -57,7 +58,7 @@ class AsyncSocket:
             await self._client.emit(event)
 
     async def send_chat_msg(self, message: str) -> None:
-        msgs = wrap(message, MSG_LIMIT)
+        msgs = wrap(message, self._message_limit)
         for msg in msgs:
             await self._client.emit("chatMsg", {"msg": msg})
 

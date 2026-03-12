@@ -16,6 +16,7 @@ class RandomFinder:
 
         if use_dict:
             # This file is downloaded by the Dockerfile
+            # TODO: This file location should probably come from the conf file
             with open("/app/cytubebot/randomvideo/eng_dict.txt") as file:
                 lines = file.read().splitlines()
                 rand_str = random.choice(lines)
