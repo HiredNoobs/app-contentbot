@@ -3,7 +3,7 @@ from enum import Enum
 
 
 class Commands(Enum):
-    COMMAND_SYMBOL = os.environ.get("COMMAND_SYMBOL", "!")
+    COMMAND_SYMBOL = os.getenv("COMMAND_SYMBOL", "!")
 
     STANDARD_COMMANDS = {
         "help": "Prints out all commands.",

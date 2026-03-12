@@ -8,7 +8,7 @@ import socketio
 from contentbot.chatbot.sio_data import SIOData
 from contentbot.utils.api_query import query_endpoint
 
-MSG_LIMIT = int(os.environ.get("CYTUBE_MSG_LIMIT", "80"))
+MSG_LIMIT = int(os.getenv("CYTUBE_MSG_LIMIT", "80"))
 logger: logging.Logger = logging.getLogger("contentbot")
 
 

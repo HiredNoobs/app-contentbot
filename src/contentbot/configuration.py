@@ -8,15 +8,19 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class Configuration:
-    def __init__(self, path: str, secrets_path: None | str = None):
+    def __init__(self, path: str, secrets_path: str):
         self._path = path
         self._secrets_path = secrets_path
 
+        self._domain = os.getenv("DOMAIN", None)
+
     def read(self) -> None:
+        self._read_conf()
+        self._read_secrets_conf()
+
+    def _read_conf(self) -> None:
         with open(self._path) as file:
             config: Dict[str, Any] = yaml.safe_load(file)
-
-        domain = os.getenv("DOMAIN", ".com")
 
         # Cytube
         self.cytube_url = config["cytube_url"]
@@ -24,7 +28,7 @@ class Configuration:
 
         # Database
         db_host = config["db_host"]
-        self.db_host = f"{db_host}.{domain}"
+        self.db_host = f"{db_host}.{self._domain}" if self._domain else db_host
         self.db_port = config["db_port"]
         self.db_index = config["db_index"]
 
@@ -33,8 +37,8 @@ class Configuration:
         self.db_key = config["db_key"]
 
         # RabbitMQ
-        rabbit_host = config["rabbitmq_host"]
-        rabbit_port = config["rabbitmq_port"]
+        self._rabbit_host = config["rabbitmq_host"]
+        self._rabbit_port = config["rabbitmq_port"]
 
         self.rabbitmq_job_queue = config["rabbitmq_job_queue"]
         self.rabbitmq_result_queue = config["rabbitmq_result_queue"]
@@ -43,20 +47,28 @@ class Configuration:
         self.rabbitmq_cert = config["rabbitmq_cert"]
         self.rabbitmq_key = config["rabbitmq_key"]
 
-        if self._secrets_path:
-            with open(self._secrets_path) as file:
-                secrets: Dict[str, Any] = yaml.safe_load(file)
+    def _read_secrets_conf(self) -> None:
+        with open(self._secrets_path) as file:
+            secrets: Dict[str, Any] = yaml.safe_load(file)
 
-            self.cytube_user = secrets["cytube_user"]
-            self.cytube_pass = secrets["cytube_pass"]
+        # Cytube
+        self.cytube_user = secrets["cytube_user"]
+        self.cytube_pass = secrets["cytube_pass"]
 
-            self.db_user = secrets["db_user"]
-            self.db_pass = secrets["db_pass"]
+        # Database
+        self.db_user = secrets["db_user"]
+        self.db_pass = secrets["db_pass"]
 
-            rabbitmq_user = secrets["rabbitmq_user"]
-            rabbitmq_pass = secrets["rabbitmq_pass"]
+        # RabbitMQ
+        rabbitmq_user = secrets["rabbitmq_user"]
+        rabbitmq_pass = secrets["rabbitmq_pass"]
 
-        self.rabbitmq_url = f"amqps://{rabbitmq_user}:{rabbitmq_pass}@{rabbit_host}.{domain}:{rabbit_port}/"
+        if self._domain:
+            self.rabbitmq_url = (
+                f"amqps://{rabbitmq_user}:{rabbitmq_pass}@{self._rabbit_host}.{self._domain}:{self._rabbit_port}/"
+            )
+        else:
+            self.rabbitmq_url = f"amqps://{rabbitmq_user}:{rabbitmq_pass}@{self._rabbit_host}:{self._rabbit_port}/"
 
     def to_dict(self) -> dict:
         return {key: value for key, value in self.__dict__.items() if not key.startswith("_")}

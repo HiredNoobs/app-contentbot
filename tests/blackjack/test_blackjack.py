@@ -22,7 +22,6 @@ def game():
 
 
 class TestBlackjack:
-
     @pytest.mark.asyncio
     async def test_add_player(self, game):
         game.start_game()  # must be in joining state
