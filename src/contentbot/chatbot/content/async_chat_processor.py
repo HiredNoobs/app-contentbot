@@ -117,9 +117,7 @@ class AsyncChatProcessor:
         # This is sent by the client during the login, not sure what it does as it doesn't appear to be
         # handled on the server side. Mainly adding it to test if anything changes...
         # https://github.com/calzoneman/sync/blob/589f999a9c526bf773a8b21ecf29ba30faf14739/www/js/callbacks.js#L472
-        # Also based on the current implementation of the bot, guest should always be false.
-        if not data["guest"]:
-            await self._sio.emit("initUserPLCallbacks")
+        await self._sio.emit("initUserPLCallbacks")
 
     async def handle_successful_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
