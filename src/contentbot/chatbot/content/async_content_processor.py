@@ -7,7 +7,6 @@ from aio_pika import IncomingMessage
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
-from contentbot.chatbot.sio_data import SIOData
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
 from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.utils.api_query import get_data_from_pattern
@@ -23,19 +22,15 @@ ACCEPTABLE_ERRORS = {
 }
 
 
-# TODO: Split all of the non-chat handling into a generic AsyncBotProcessor class
-# this class should focus on the chat commands.
-class AsyncChatProcessor:
+class AsyncContentProcessor:
     def __init__(
         self,
         sio: AsyncSocket,
-        siodata: SIOData,
         db: AsyncRedisDB,
         job_queue: AsyncRabbitMQProducer,
         result_queue: AsyncRabbitMQConsumer,
     ):
         self._sio = sio
-        self._siodata = siodata
         self._db = db
         self._job_queue = job_queue
         self._result_queue = result_queue
@@ -62,15 +57,6 @@ class AsyncChatProcessor:
     # Event handlers
     # -----------------------------------------------------
 
-    async def handle_connect(self):
-        await self._sio.join_channel()
-
-    async def handle_channel_opts(self):
-        await self._sio.login()
-
-    def handle_disconnect(self):
-        self._sio.data.reset_data()
-
     async def handle_chat_message(self, data: Dict):
         username = data.get("username", "")
         msg = data.get("msg", "")
@@ -81,22 +67,11 @@ class AsyncChatProcessor:
 
         await self._handle_command(username, command, args)
 
-    async def handle_user_join(self, data: Dict) -> None:
-        user = data["name"]
-        rank = data["rank"]
-        self._siodata.add_or_update_user(user, rank)
-
-    async def handle_user_leave(self, data: Dict) -> None:
-        user = data["name"]
-        self._siodata.remove_user(user)
-        if self._siodata.only_remaining_user():
-            await self._sio.become_leader()
-
     async def handle_change_media(self, data: Dict) -> None:
-        self._siodata.current_media = data
+        self._sio.data.current_media = data
 
     async def handle_media_update(self, data: Dict) -> None:
-        self._siodata.update_current_time(data["currentTime"])
+        self._sio.data.update_current_time(data["currentTime"])
 
     async def handle_new_content(self, msg: IncomingMessage) -> None:
         content = json.loads(msg.body)
@@ -106,7 +81,7 @@ class AsyncChatProcessor:
         channel_id = content.get("channel_id")
         dt = content.get("datetime")
 
-        self._siodata.add_pending(video_id, msg)
+        self._sio.data.add_pending(video_id, msg)
 
         try:
             await self._sio.add_video_to_queue(video_id)
@@ -116,21 +91,10 @@ class AsyncChatProcessor:
             logger.exception("Failed to add video to queue")
             await msg.nack(requeue=True)
 
-    async def handle_successful_login(self, _: Dict) -> None:
-        # playerReady tells the server to start sending changeMedia events.
-        await self._sio.emit("playerReady")
-        # This is sent by the client during the login, not sure what it does as it doesn't appear to be
-        # handled on the server side. Mainly adding it to test if anything changes...
-        # https://github.com/calzoneman/sync/blob/589f999a9c526bf773a8b21ecf29ba30faf14739/www/js/callbacks.js#L472
-        await self._sio.emit("initUserPLCallbacks")
-
-    def handle_set_permissions(self, data: Dict) -> None:
-        self._sio.data.channel_permissions = data
-
     async def handle_successful_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
 
-        msg = self._siodata.get_pending(video_id)
+        msg = self._sio.data.get_pending(video_id)
         if not msg:
             return
 
@@ -140,12 +104,12 @@ class AsyncChatProcessor:
         except Exception:
             logger.exception("Failed to ack RabbitMQ message for %s", video_id)
         finally:
-            self._siodata.remove_pending(video_id)
+            self._sio.data.remove_pending(video_id)
 
     async def handle_failed_queue(self, data: Dict) -> None:
         video_id = self._extract_id(data)
 
-        msg = self._siodata.get_pending(video_id)
+        msg = self._sio.data.get_pending(video_id)
         if not msg:
             return
 
@@ -158,16 +122,7 @@ class AsyncChatProcessor:
         except Exception:
             logger.exception("Failed to nack RabbitMQ message for %s", video_id)
         finally:
-            self._siodata.remove_pending(video_id)
-
-    async def handle_user_list(self, data: Dict) -> None:
-        for userdata in data:
-            user = userdata["name"]
-            rank = userdata["rank"]
-            self._siodata.add_or_update_user(user, rank)
-
-        if self._siodata.only_remaining_user():
-            await self._sio.become_leader()
+            self._sio.data.remove_pending(video_id)
 
     # -----------------------------------------------------
     # Command handlers
@@ -252,7 +207,7 @@ class AsyncChatProcessor:
 
         for tag in tags:
             # Stops content jobs being added over and over again
-            last_pull = self._siodata.get_last_content_pull(tag)
+            last_pull = self._sio.data.get_last_content_pull(tag)
             if last_pull:
                 if last_pull < datetime.now() - timedelta(minutes=5):
                     continue

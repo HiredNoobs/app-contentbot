@@ -7,11 +7,12 @@ from typing import Dict
 import click
 
 from contentbot.chatbot.async_chat_bot import AsyncChatBot
+from contentbot.chatbot.async_event_processor import AsyncEventProcessor
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.blackjack.async_blackjack_processor import (
     AsyncBlackjackProcessor,
 )
-from contentbot.chatbot.content.async_chat_processor import AsyncChatProcessor
+from contentbot.chatbot.content.async_content_processor import AsyncContentProcessor
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
 from contentbot.chatbot.sio_data import SIOData
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
@@ -65,9 +66,10 @@ async def run_chatbot(cfg: Dict) -> None:
     await result_consumer.start()
 
     sio = AsyncSocket(cfg["cytube_url"], cfg["cytube_channel"], cfg["cytube_user"], cfg["cytube_pass"], siodata)
-    processor = AsyncChatProcessor(sio, siodata, db, job_producer, result_consumer)
+    event_processor = AsyncEventProcessor(sio)
+    content_processor = AsyncContentProcessor(sio, db, job_producer, result_consumer)
     blackjack_processor = AsyncBlackjackProcessor(sio)
-    bot = AsyncChatBot(sio, processor, blackjack_processor, db, result_consumer)
+    bot = AsyncChatBot(sio, event_processor, content_processor, blackjack_processor, db, result_consumer)
 
     try:
         await asyncio.gather(
