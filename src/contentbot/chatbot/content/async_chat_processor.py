@@ -23,6 +23,8 @@ ACCEPTABLE_ERRORS = {
 }
 
 
+# TODO: Split all of the non-chat handling into a generic AsyncBotProcessor class
+# this class should focus on the chat commands.
 class AsyncChatProcessor:
     def __init__(
         self,
@@ -65,6 +67,9 @@ class AsyncChatProcessor:
 
     async def handle_channel_opts(self):
         await self._sio.login()
+
+    def handle_disconnect(self):
+        self._sio.data.reset_data()
 
     async def handle_chat_message(self, data: Dict):
         username = data.get("username", "")

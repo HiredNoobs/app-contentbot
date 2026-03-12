@@ -22,6 +22,15 @@ class SIOData:
     _admin_permission_level = 3
     _moderator_permission_level = 2
 
+    # This is for handling disconnects.
+    # Mainly we're concerned _users will contain the bot
+    # before it's properly logged in... but we get a lot
+    # of the data again on login so we may as well clear
+    # anything that is collected from the server.
+    def reset_data(self) -> None:
+        self._users = {}
+        self._channel_permissions = {}
+
     # ------------------------------------------------------------------
     # User
     # ------------------------------------------------------------------
@@ -92,10 +101,7 @@ class SIOData:
         Returns the IncomingMessage object from RabbitMQ if
         the video is pending, else returns None.
         """
-        if video_id in self._pending:
-            return self._pending[video_id]
-        else:
-            return None
+        return self._pending.get(video_id)
 
     def add_pending(self, video_id: str, msg: IncomingMessage) -> None:
         if video_id not in self._pending:

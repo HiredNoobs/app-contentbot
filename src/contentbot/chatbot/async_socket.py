@@ -71,7 +71,7 @@ class AsyncSocket:
         """
         Become leader and pause the current media.
         """
-        logger.debug("Attempting to promote %s to leader.", self._username)
+        logger.debug("Bot (%s) is attempting to become leader.", self._username)
 
         # Obviously this can just be the user not having admin but it can
         # also be the bot responding to events before the login is complete

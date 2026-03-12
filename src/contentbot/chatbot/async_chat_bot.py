@@ -65,6 +65,7 @@ class AsyncChatBot:
         @self._sio._client.event
         async def disconnect() -> None:
             logger.info("Socket disconnected.")
+            self._processor.handle_disconnect()
 
         # AsyncChatBot only has some extra code because
         # it needs to route to the correct handler...
