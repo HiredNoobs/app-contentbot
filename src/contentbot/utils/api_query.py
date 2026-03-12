@@ -20,7 +20,7 @@ def query_endpoint(
         try:
             resp = requests.get(url, cookies=cookies, timeout=60)
             resp.raise_for_status()
-        except requests.exceptions.RequestException:
+        except requests.exceptions.HTTPError:
             current_backoff = min(current_backoff + backoff_factor, max_backoff)
             time.sleep(current_backoff)
 
