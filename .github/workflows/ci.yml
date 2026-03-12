@@ -2,48 +2,52 @@ name: CI Pipeline
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master ]
   pull_request:
-    branches:
-      - master
+    branches: [ master ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     container:
-      image: python:3.11-slim-bullseye
+      image: python:3.14.3-slim-trixie
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y \
+            gcc \
+            build-essential
+          rm -rf /var/lib/apt/lists/*
+
       - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install project dependencies
+      - name: Install project with dev extras
         run: |
           pip install --upgrade pip
-          pip install pytest pytest-cov mypy flake8 Flake8-pyproject
-          pip install -e contentbot
-          pip install -e worker
+          pip install ".[dev]"
 
-      - name: Run tests with pytest and generate coverage report
+      - name: Run tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: python3 -m pytest --cov=contentbot --cov-report=html --cov-fail-under=20
-
-      - name: Ensure mypy cache directory exists
-        run: mkdir -p .mypy_cache/
+        run: |
+          pytest --cov=contentbot --cov-report=html --cov-fail-under=20
 
       - name: Run mypy
-        run: python3 -m mypy --install-types --non-interactive --cache-dir=.mypy_cache/ contentbot
+        run: |
+          mypy --install-types --non-interactive contentbot
 
       - name: Run flake8
-        run: flake8 contentbot tests
+        run: |
+          flake8 contentbot tests

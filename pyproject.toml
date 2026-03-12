@@ -22,7 +22,9 @@ dev = [
     "black",
     "isort",
     "flake8",
+    "Flake8-pyproject"
     "pytest",
+    "pytest-cov",
     "pytest-asyncio",
     "mypy",
 ]
