@@ -25,7 +25,7 @@ class Commands(Enum):
         "hit": "Take another card from the dealer. Usage: `hit`.",
         "join": "Join the current blackjack table. Usage: `join`.",
         "split": "Split your hand into two hands when dealt a pair. Usage: `split`.",
-        # "double": "Double your bet and receive exactly one more card. Usage: `double`.",  # TODO: Implement this :)
+        "double": "Double your bet and receive exactly one more card. Usage: `double`.",
         "stand": "Keep your current hand and end your current hand. Usage: `stand`.",
         "init_blackjack": "Initialize the blackjack game system.",
         "start_blackjack": "Start a new blackjack round. Usage: `start_blackjack`.",

@@ -30,7 +30,34 @@ class Player:
     def calculate_active_hand_value(self) -> int:
         return calculate_hand_value(self.get_active_hand())
 
-    def can_split(self) -> bool:
+    def _can_double(self) -> bool:
+        """Returns True if the player can double their bet."""
+        hand = self.get_active_hand()
+
+        if len(hand) != 2:
+            return False
+
+        if self.bet <= 0:
+            return False
+
+        if self.balance < self.bet:
+            return False
+
+        return True
+
+    def double_bet(self) -> bool:
+        """
+        Attempts to double the player's bet.
+        Returns True if successful, False otherwise.
+        """
+        if not self._can_double():
+            return False
+
+        self.balance -= self.bet
+        self.bet *= 2
+        return True
+
+    def _can_split(self) -> bool:
         """Returns a bool for whether the current hand can be split"""
         hand = self.get_active_hand()
         return len(hand) == 2 and hand[0]["rank"] == hand[1]["rank"]
@@ -42,7 +69,7 @@ class Player:
         split into two separate hands. Each resulting hand is dealt one extra card.
         Returns True if the split is successful.
         """
-        if not self.can_split():
+        if not self._can_split():
             return False
 
         # If this is the first split, create the hand container.

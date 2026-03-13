@@ -40,6 +40,9 @@ class AsyncBlackjackProcessor(BaseProcessor):
                     await self._sio.send_chat_msg("Please specify a bet amount.")
                     return
                 await self._cmd_bet(username, args[0])
+            case "double":
+                if self._blackjack.mid_round_checks():
+                    await self._cmd_double(username)
             case "hit":
                 if self._blackjack.mid_round_checks():
                     await self._cmd_hit(username)
@@ -76,6 +79,33 @@ class AsyncBlackjackProcessor(BaseProcessor):
 
     async def _cmd_bet(self, username: str, bet: str) -> None:
         await self._blackjack.place_bet(username, bet)
+
+    async def _cmd_double(self, username: str) -> None:
+        player = self._blackjack.get_player(username)
+        if not player:
+            return
+
+        if player.finished:
+            return
+
+        if not player.double_bet():
+            await self._sio.send_chat_msg(f"{username}, you cannot double your bet.")
+            return
+
+        card = self._blackjack.deck.draw_card()
+        player.add_card_to_active_hand(card)
+        hv = player.calculate_active_hand_value()
+
+        await self._sio.send_chat_msg(
+            f"{player.name} doubles down! New card: {card}. Active hand: {player.get_active_hand()} (value {hv})"
+        )
+
+        if hv > 21:
+            await self._sio.send_chat_msg(f"{username} busts on this hand!")
+        elif hv == 21:
+            await self._sio.send_chat_msg(f"{username} got Blackjack on this hand!")
+
+        player.finish_active_hand()
 
     async def _cmd_hit(self, username: str) -> None:
         player = self._blackjack.get_player(username)

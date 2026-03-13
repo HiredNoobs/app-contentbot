@@ -27,13 +27,13 @@ class TestPlayer:
         """A hand of exactly two cards with the same rank can be split."""
         p = Player("Alice")
         p.hand = [{"rank": "8", "suit": "Hearts"}, {"rank": "8", "suit": "Diamonds"}]
-        assert p.can_split() is True
+        assert p._can_split() is True
 
     def test_can_split_false_different_ranks(self):
         """A hand with two cards of different ranks cannot be split."""
         p = Player("Alice")
         p.hand = [{"rank": "8", "suit": "Hearts"}, {"rank": "9", "suit": "Diamonds"}]
-        assert p.can_split() is False
+        assert p._can_split() is False
 
     def test_do_split_success(monkeypatch):
         """do_split should split a splittable hand and update internal state accordingly."""
