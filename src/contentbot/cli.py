@@ -101,23 +101,15 @@ async def run_worker(cfg: Dict) -> None:
         cfg["db_key"],
     )
 
-    rabbit_ssl = create_ssl_context(
-        cfg["rabbitmq_ca_cert"],
-        cfg["rabbitmq_cert"],
-        cfg["rabbitmq_key"],
-    )
+    if cfg["rabbitmq_ca_cert"] and cfg["rabbitmq_cert"] and cfg["rabbitmq_cert"]:
+        logger.debug("Creating SSL context for RabbitMQ.")
+        rabbit_ssl = create_ssl_context(cfg["rabbitmq_ca_cert"], cfg["rabbitmq_cert"], cfg["rabbitmq_key"])
+    else:
+        logger.debug("Missing config for RabbitMQ SSL, attempting without SSL context.")
+        rabbit_ssl = None
 
-    job_consumer = AsyncRabbitMQConsumer(
-        cfg["rabbitmq_url"],
-        cfg["rabbitmq_job_queue"],
-        rabbit_ssl,
-    )
-
-    result_producer = AsyncRabbitMQProducer(
-        cfg["rabbitmq_url"],
-        cfg["rabbitmq_result_queue"],
-        rabbit_ssl,
-    )
+    job_consumer = AsyncRabbitMQConsumer(cfg["rabbitmq_url"], cfg["rabbitmq_job_queue"], rabbit_ssl)
+    result_producer = AsyncRabbitMQProducer(cfg["rabbitmq_url"], cfg["rabbitmq_result_queue"], rabbit_ssl)
 
     await job_consumer.start()
     await result_producer.start()
