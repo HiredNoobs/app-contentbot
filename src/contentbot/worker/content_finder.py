@@ -12,18 +12,25 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class ContentFinder:
+    """Class for discovering new YouTube content."""
+
     def find_content(self, channel: Dict) -> list[dict]:
         """
-        returns:
-            A list of dicts, each video comes in a dict.
-            Comes in the form:
-            [
+        Retrieve newly published videos for a channel.
+
+        Args:
+            channel (Dict): Channel metadata containing:
+                - channel_id (str)
+                - channel_name (str)
+                - last_update (ISO8601 str)
+
+        Returns:
+            list[dict]: A list of dictionaries, each containing:
                 {
-                    "channel_id": "abc123",
-                    "datetime": datetime.datetime(2025, 1, 1, 0, 5, 23),
-                    "video_id": "afghtbx36"
+                    "channel_id": str,
+                    "datetime": str (ISO8601),
+                    "video_id": str
                 }
-            ]
         """
         content = []
         channel_id = channel["channel_id"]
@@ -61,6 +68,19 @@ class ContentFinder:
         return content
 
     def _get_text_from_tag(self, tag: element.Tag, target: str) -> str:
+        """
+        Extract the text content from a specific child tag.
+
+        Args:
+            tag (bs4.element.Tag): Parent tag to search within.
+            target (str): Name of the child tag to extract.
+
+        Returns:
+            str: The text content of the child tag.
+
+        Raises:
+            ValueError: If the expected tag is not found.
+        """
         child = tag.find(target)
         if child:
             return child.text
@@ -69,13 +89,21 @@ class ContentFinder:
 
     def _is_short(self, title: str, id: str) -> bool:
         """
-        Returns True if video id is a YT Shorts video.
+        Determine whether a video is a YouTube Shorts video.
+
+        Args:
+            title (str): Video title.
+            id (str): YouTube video ID.
+
+        Returns:
+            bool: True if the video is a Short, otherwise False.
         """
         if "#shorts" in title:
             return True
 
         shorts_url = f"https://www.youtube.com/shorts/{id}"
         resp = requests.head(shorts_url, cookies={"CONSENT": "YES+1"}, timeout=60, allow_redirects=False)
+
         if resp.status_code == 303 or resp.status_code == 302:
             return False
         # Assume any 2XX successfully reached a shorts page

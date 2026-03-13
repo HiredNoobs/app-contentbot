@@ -8,8 +8,20 @@ from contentbot.common.utils.api_query import query_endpoint
 
 def clean_yt_string(channel_name_or_url: str) -> str:
     """
-    Takes a YouTube channel name or full URL and tries to clean
-    the string to get just the channel name.
+    Clean a YouTube channel name or URL and extract the channel identifier.
+
+    This function:
+        - Removes HTML anchor tags
+        - Strips common YouTube path suffixes (e.g., /videos, /about)
+        - Removes trailing slashes
+        - Removes leading '@' symbols
+        - Extracts the final path component if a URL is provided
+
+    Args:
+        channel_name_or_url (str): Raw channel name or URL.
+
+    Returns:
+        str: A cleaned channel identifier suitable for lookup.
     """
     if "</a>" in channel_name_or_url:
         cleaned_name = re.search(r".*>(.*?)</a>", channel_name_or_url)
@@ -37,6 +49,18 @@ def clean_yt_string(channel_name_or_url: str) -> str:
 
 
 def get_channel_id_from_name(channel_name: str) -> Optional[str]:
+    """
+    Resolve a YouTube channel name or URL to its channel ID.
+
+    This function attempts multiple YouTube URL formats and extracts the
+    channel ID using regex patterns applied to the page's script tags.
+
+    Args:
+        channel_name (str): Raw channel name or URL.
+
+    Returns:
+        Optional[str]: The resolved channel ID, or None if not found.
+    """
     channel_name = clean_yt_string(channel_name)
 
     cookies = {"CONSENT": "YES+1"}
@@ -57,7 +81,21 @@ def get_data_from_pattern(
     url: str, pattern: str, cookies: Optional[Dict] = None, script_tag_name: str = "ytInitialData"
 ) -> Optional[str]:
     """
-    query_endpoint wrapper that also extracts from a YouTube page based on a regex pattern.
+    Fetch a YouTube page and extract data using a regex pattern applied to a script tag.
+
+    This is a convenience wrapper around `query_endpoint` that:
+        - Retrieves the page HTML
+        - Locates a <script> tag containing a specific identifier
+        - Applies a regex pattern to extract a desired value
+
+    Args:
+        url (str): The URL to fetch.
+        pattern (str): Regex pattern used to extract data.
+        cookies (Optional[Dict]): Optional cookies to include in the request.
+        script_tag_name (str): Name or identifier used to locate the correct script tag.
+
+    Returns:
+        Optional[str]: The extracted value, or None if not found or on error.
     """
     try:
         resp = query_endpoint(url, cookies=cookies)
@@ -69,4 +107,4 @@ def get_data_from_pattern(
         match = re.search(pattern, script_tag.text)
         return match.group(1) if match else None
     except Exception:
-        return None  # Should this be an exception...?
+        return None

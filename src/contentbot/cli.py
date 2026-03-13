@@ -30,6 +30,16 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 def load_config() -> Dict:
+    """
+    Load configuration and secrets files into a single dictionary.
+
+    Defaults to looking in the current directory for `contentbot.conf` and
+    `contentbot_secrets.conf`. This can be overridden via environment
+    variables (`CONFIG_PATH` and `SECRETS_PATH`).
+
+    Returns:
+        Dict: A merged configuration dictionary ready for use by the bot.
+    """
     config_path = os.getenv("CONFIG_PATH", "contentbot.conf")
     secrets_path = os.getenv("SECRETS_PATH", "contentbot_secrets.conf")
     config = Configuration(config_path, secrets_path)
@@ -44,6 +54,12 @@ def load_config() -> Dict:
 
 
 async def run_chatbot(cfg: Dict) -> None:
+    """
+    Initialise and run the Cytube chatbot.
+
+    Args:
+        cfg (Dict): Full configuration dictionary.
+    """
     siodata = SIOData()
     siodata.user = cfg["cytube_user"]
 
@@ -67,7 +83,7 @@ async def run_chatbot(cfg: Dict) -> None:
 
     sio = AsyncSocket(cfg["cytube_url"], cfg["cytube_channel"], cfg["cytube_user"], cfg["cytube_pass"], siodata)
     event_processor = AsyncEventProcessor(sio)
-    content_processor = AsyncContentProcessor(sio, db, job_producer, result_consumer)
+    content_processor = AsyncContentProcessor(sio, db, job_producer)
     blackjack_processor = AsyncBlackjackProcessor(sio)
     bot = AsyncChatBot(sio, event_processor, content_processor, blackjack_processor, db, result_consumer)
 
@@ -90,6 +106,12 @@ async def run_chatbot(cfg: Dict) -> None:
 
 
 async def run_worker(cfg: Dict) -> None:
+    """
+    Run the background worker responsible for content discovery.
+
+    Args:
+        cfg (Dict): Full configuration dictionary.
+    """
     db = AsyncRedisDB(
         cfg["db_host"],
         cfg["db_port"],
@@ -158,11 +180,13 @@ def cli() -> None:
 
 @cli.command()
 def chatbot() -> None:
+    """Launch the Cytube chatbot."""
     cfg = load_config()
     asyncio.run(run_chatbot(cfg))
 
 
 @cli.command()
 def worker() -> None:
+    """Launch the background worker responsible for content discovery."""
     cfg = load_config()
     asyncio.run(run_worker(cfg))

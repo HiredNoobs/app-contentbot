@@ -10,13 +10,38 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class Configuration:
+    """
+    Load and manage application configuration and secrets.
+
+    This class reads two YAML files:
+        - A main configuration file
+        - A secrets configuration file (credentials, passwords, keys)
+
+    After reading both files, their values are exposed as public attributes
+    on the instance. A dictionary representation can be retrieved via `to_dict()`.
+    """
+
     def __init__(self, path: str, secrets_path: str):
+        """
+        Initialise the configuration loader.
+
+        Args:
+            path (str): Path to the main configuration file.
+            secrets_path (str): Path to the secrets configuration file.
+        """
         self._path = path
         self._secrets_path = secrets_path
 
+        # Optional domain override for hostnames
         self._domain = os.getenv("DOMAIN", None)
 
     def read(self) -> None:
+        """
+        Read both configuration files and populate public attributes.
+
+        Raises:
+            ConfigurationError: If either configuration path is missing.
+        """
         if not self._path or not self._secrets_path:
             raise ConfigurationError("Config file or secret config file not set.")
 
@@ -24,6 +49,7 @@ class Configuration:
         self._read_secrets_conf()
 
     def _read_conf(self) -> None:
+        """Read and parse the main configuration file."""
         with open(self._path) as file:
             config: Dict[str, Any] = yaml.safe_load(file)
 
@@ -55,6 +81,7 @@ class Configuration:
         self.rabbitmq_key = config.get("rabbitmq_key")
 
     def _read_secrets_conf(self) -> None:
+        """Read and parse the secrets configuration file."""
         with open(self._secrets_path) as file:
             secrets: Dict[str, Any] = yaml.safe_load(file)
 
@@ -77,5 +104,11 @@ class Configuration:
         else:
             self.rabbitmq_url = f"amqps://{rabbitmq_user}:{rabbitmq_pass}@{self._rabbit_host}:{self._rabbit_port}/"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
+        """
+        Convert all public configuration attributes into a dictionary.
+
+        Returns:
+            Dict: A dictionary containing all non-private attributes.
+        """
         return {key: value for key, value in self.__dict__.items() if not key.startswith("_")}

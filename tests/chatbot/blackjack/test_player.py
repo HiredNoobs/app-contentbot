@@ -46,7 +46,7 @@ class TestPlayer:
         assert result is True
         assert p.hands is not None
         assert len(p.hands) == 2
-        assert p.split_count == 1
+        assert p._split_count == 1
 
     def test_do_split_failure_when_not_splittable(self):
         """do_split returns False if the hand cannot be split."""
@@ -71,12 +71,12 @@ class TestPlayer:
             [{"rank": "8", "suit": "Hearts"}],
             [{"rank": "8", "suit": "Diamonds"}],
         ]
-        p.active_hand_index = 0
+        p._active_hand_index = 0
         p.finished = False
         p.finish_active_hand()
 
         # After finishing first hand, active_hand_index should advance.
-        assert p.active_hand_index == 1
+        assert p._active_hand_index == 1
         assert p.finished is False
 
         # Now finish the second hand.
@@ -88,16 +88,16 @@ class TestPlayer:
         p = Player("Alice")
         p.hand = [{"rank": "K", "suit": "Spades"}]
         p.hands = [[{"rank": "K", "suit": "Spades"}]]
-        p.active_hand_index = 1
+        p._active_hand_index = 1
         p.finished = True
         p.bet = 50
-        p.split_count = 2
+        p._split_count = 2
 
         p.reset_hands()
 
         assert p.hand == []
         assert p.hands is None
-        assert p.active_hand_index == 0
+        assert p._active_hand_index == 0
         assert p.finished is False
         assert p.bet == 0
-        assert p.split_count == 0
+        assert p._split_count == 0

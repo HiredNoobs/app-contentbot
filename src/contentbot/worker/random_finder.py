@@ -10,10 +10,35 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class RandomFinder:
+    """Class for discovering random content from YouTube."""
+
     def __init__(self, dictonary_file: Optional[str]):
+        """
+        Initialise the random finder.
+
+        Args:
+            dictonary_file (Optional[str]): Path to a dictionary file containing
+                one word per line. If provided, random words may be selected
+                from this file instead of generating random strings.
+        """
         self._dictonary_file = dictonary_file
 
     def find_random(self, size: int, use_dict: bool) -> Dict[str, str]:
+        """
+        Generate a random YouTube search query and return a random video ID
+        from the results.
+
+        Args:
+            size (int): Length of the random string if not using a dictionary.
+            use_dict (bool): Whether to use the dictionary file for random words.
+
+        Returns:
+            Dict[str, str]: A dictionary containing:
+                {
+                    "video_id": "<YouTube video ID>"
+                }
+            Returns an empty dict if no videos are found.
+        """
         if 0 > size > 10:
             size = 3
 
@@ -47,8 +72,17 @@ class RandomFinder:
 
     def _rand_str(self, size: int) -> str:
         """
-        Great func found here: https://stackoverflow.com/a/2257449 &
-        https://stackoverflow.com/a/23728630
+        Generate a random alphanumeric string.
+
+        Based on:
+            https://stackoverflow.com/a/2257449
+            https://stackoverflow.com/a/23728630
+
+        Args:
+            size (int): Length of the string to generate.
+
+        Returns:
+            str: A random lowercase alphanumeric string.
         """
         chars = string.ascii_lowercase + string.digits
         return "".join(random.SystemRandom().choice(chars) for _ in range(size))

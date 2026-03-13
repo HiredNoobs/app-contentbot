@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from contentbot.chatbot.async_socket import AsyncSocket
 
@@ -7,21 +7,33 @@ logger = logging.getLogger("contentbot")
 
 
 class BaseProcessor:
-    """
-    Base class for all event processors.
-
-    Provides shared socket reference, logging, and optional helpers.
-    """
+    """Base class for all event processors."""
 
     def __init__(self, sio: AsyncSocket):
+        """
+        Initialise the processor with a socket interface.
+
+        Args:
+            sio (AsyncSocket): The socket used for sending events.
+        """
         self._sio = sio
 
     @staticmethod
-    def _parse_chat_event(data: Dict) -> tuple[str, str, List[str]]:
+    def _parse_chat_event(data: Dict) -> Tuple[str, str, List[str]]:
         """
-        Extracts the user, command, and args from a chat event.
+        Parse a chat event into its components: username, command, and arguments.
 
-        Example: '!add_channel foo bar' -> ('add_channel', ['foo', 'bar'])
+        The expected message format is a command beginning with the command
+        symbol (e.g., '!add_channel foo bar').
+
+        Args:
+            data (Dict): Raw chat event payload containing at least 'username' and 'msg' fields.
+
+        Returns:
+            Tuple[str, str, List[str]]:
+                - username: The user who sent the message.
+                - command: The parsed command name (without the prefix).
+                - args: A list of arguments following the command.
         """
         username = data.get("username", "")
         msg = data.get("msg", "")

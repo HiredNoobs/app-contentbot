@@ -7,9 +7,15 @@ from contentbot.chatbot.processors.base_processor import BaseProcessor
 
 
 class AsyncBlackjackProcessor(BaseProcessor):
-    """Processor for Blackjack events (mainly chat commands.)"""
+    """Processor for handling blackjack-related chat commands and game flow."""
 
     def __init__(self, sio: AsyncSocket) -> None:
+        """
+        Initialise the blackjack processor.
+
+        Args:
+            sio (AsyncSocket): Socket interface for sending chat messages.
+        """
         super().__init__(sio)
         self._blackjack = BlackjackGame(sio)
 
@@ -18,10 +24,17 @@ class AsyncBlackjackProcessor(BaseProcessor):
     # -----------------------------------------------------
 
     async def handle_chat_message(self, data: Dict):
+        """
+        Handle an incoming chat message event.
+
+        Args:
+            data (Dict): Raw chat event payload.
+        """
         username, command, args = self._parse_chat_event(data)
         await self._handle_command(username, command, args)
 
     async def _handle_end_round(self) -> None:
+        """Complete the dealer's turn and resolve the round for all players."""
         self._blackjack.dealer_play()
         dealer_value = calculate_hand_value(self._blackjack.dealer_hand)
         await self._sio.send_chat_msg(
@@ -34,6 +47,14 @@ class AsyncBlackjackProcessor(BaseProcessor):
     # -----------------------------------------------------
 
     async def _handle_command(self, username: str, command: str, args: List[str]) -> None:
+        """
+        Route a parsed command to the appropriate handler.
+
+        Args:
+            username (str): User issuing the command.
+            command (str): Command keyword.
+            args (List[str]): Additional command arguments.
+        """
         match command:
             case "bet":
                 if not args:
@@ -78,14 +99,24 @@ class AsyncBlackjackProcessor(BaseProcessor):
             await self._handle_end_round()
 
     async def _cmd_bet(self, username: str, bet: str) -> None:
+        """
+        Handle the 'bet' command.
+
+        Args:
+            username (str): User placing the bet.
+            bet (str): Bet amount as a string.
+        """
         await self._blackjack.place_bet(username, bet)
 
     async def _cmd_double(self, username: str) -> None:
-        player = self._blackjack.get_player(username)
-        if not player:
-            return
+        """
+        Handle the 'double' command, doubling the player's bet and drawing one card.
 
-        if player.finished:
+        Args:
+            username (str): User issuing the command.
+        """
+        player = self._blackjack.get_player(username)
+        if not player or player.finished:
             return
 
         if not player.double_bet():
@@ -108,11 +139,14 @@ class AsyncBlackjackProcessor(BaseProcessor):
         player.finish_active_hand()
 
     async def _cmd_hit(self, username: str) -> None:
-        player = self._blackjack.get_player(username)
-        if not player:
-            return
+        """
+        Handle the 'hit' command, drawing a card for the active hand.
 
-        if player.finished:
+        Args:
+            username (str): User issuing the command.
+        """
+        player = self._blackjack.get_player(username)
+        if not player or player.finished:
             return
 
         card = self._blackjack.deck.draw_card()
@@ -129,9 +163,21 @@ class AsyncBlackjackProcessor(BaseProcessor):
             player.finish_active_hand()
 
     async def _cmd_join(self, username: str) -> None:
+        """
+        Handle the 'join' command, adding a player to the game.
+
+        Args:
+            username (str): User joining the game.
+        """
         await self._blackjack.add_player(username)
 
     async def _cmd_split(self, username: str) -> None:
+        """
+        Handle the 'split' command, attempting to split the player's active hand.
+
+        Args:
+            username (str): User issuing the command.
+        """
         player = self._blackjack.get_player(username)
         if not player:
             return
@@ -142,6 +188,12 @@ class AsyncBlackjackProcessor(BaseProcessor):
             await self._sio.send_chat_msg("Cannot split hand.")
 
     async def _cmd_stand(self, username: str) -> None:
+        """
+        Handle the 'stand' command, ending the player's turn for the active hand.
+
+        Args:
+            username (str): User issuing the command.
+        """
         player = self._blackjack.get_player(username)
         if not player:
             return
@@ -150,10 +202,12 @@ class AsyncBlackjackProcessor(BaseProcessor):
         await self._sio.send_chat_msg(f"{username} stands on active hand.")
 
     async def _cmd_init_blackjack(self) -> None:
+        """Initialise the blackjack game."""
         self._blackjack.start_game()
         await self._sio.send_chat_msg("Blackjack initialized. Use 'join' to enter the game.")
 
     async def _cmd_start_blackjack(self) -> None:
+        """Start a new blackjack round, dealing initial cards to all players."""
         self._blackjack.start_round()
         await self._sio.send_chat_msg(f"Dealer's first card is {self._blackjack.dealer_hand[0]}.")
 
@@ -162,5 +216,6 @@ class AsyncBlackjackProcessor(BaseProcessor):
             await self._sio.send_chat_msg(f"{player.name}, active hand: {player.get_active_hand()} (value {hv})")
 
     async def _cmd_stop_blackjack(self) -> None:
+        """Stop the blackjack game and reset all state."""
         self._blackjack.stop_game()
         await self._sio.send_chat_msg("Blackjack stopped.")

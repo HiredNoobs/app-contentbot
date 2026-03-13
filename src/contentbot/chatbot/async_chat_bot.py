@@ -16,6 +16,14 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class AsyncChatBot:
+    """
+    Main orchestrator for the chatbot.
+
+    This class wires together the socket connection, event processors,
+    Redis database, and RabbitMQ consumers. It registers all event handlers
+    and delegates incoming events to the correct processor.
+    """
+
     def __init__(
         self,
         sio: AsyncSocket,
@@ -25,6 +33,17 @@ class AsyncChatBot:
         db: AsyncRedisDB,
         result_consumer: AsyncRabbitMQConsumer,
     ):
+        """
+        Initialise the chatbot and register all event handlers.
+
+        Args:
+            sio (AsyncSocket): Socket interface for Cytube communication.
+            event_processor (AsyncEventProcessor): Handles general events.
+            content_processor (AsyncContentProcessor): Handles content commands and media events.
+            blackjack_processor (AsyncBlackjackProcessor): Handles blackjack commands.
+            db (AsyncRedisDB): Redis database interface.
+            result_consumer (AsyncRabbitMQConsumer): RabbitMQ consumer for worker results.
+        """
         self._sio = sio
         self._event_processor = event_processor
         self._content_processor = content_processor
@@ -35,6 +54,20 @@ class AsyncChatBot:
         self._register_handlers()
 
     def _should_process_chat(self, data: Dict) -> bool:
+        """
+        Determine whether an incoming chat message should be processed.
+
+        Conditions checked:
+            - Message must contain a username, message text, and timestamp.
+            - Message must be recent (within 10 seconds).
+            - Message must not be from the bot itself.
+
+        Args:
+            data (Dict): Raw chat event payload.
+
+        Returns:
+            bool: True if the message should be processed, otherwise False.
+        """
         username = data.get("username")
         msg = data.get("msg", None)
         chat_ts = datetime.fromtimestamp(data["time"] / 1000)
@@ -51,9 +84,7 @@ class AsyncChatBot:
         return True
 
     def _register_handlers(self):
-        """
-        Attach event handlers to the Socket.IO client.
-        """
+        """Register all Socket.IO event handlers."""
 
         @self._sio._client.event
         async def connect() -> None:
@@ -70,8 +101,6 @@ class AsyncChatBot:
             logger.info("Socket disconnected.")
             self._event_processor.handle_disconnect()
 
-        # AsyncChatBot only has some extra code because
-        # it needs to route to the correct handler...
         @self._sio._client.event
         async def chatMsg(data: Dict) -> None:
             logger.debug("chatMsg event captured: %s", data)
@@ -150,15 +179,14 @@ class AsyncChatBot:
             await self._event_processor.handle_user_list(data)
 
     async def run(self):
-        """
-        Connect to Socket.IO and wait forever.
-        """
+        """Start the bot by connecting to Socket.IO and waiting indefinitely."""
         await self._sio.connect()
         await self._sio._client.wait()
 
     async def read_content_queue(self):
         """
-        Consume worker results from RabbitMQ and delegate to the processor.
+        Continuously consume worker results from RabbitMQ and forward them
+        to the content processor for handling.
         """
         async for msg in self._result_consumer.consume():
             await self._content_processor.handle_new_content(msg)

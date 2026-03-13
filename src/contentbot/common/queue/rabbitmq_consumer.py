@@ -14,12 +14,22 @@ logger = logging.getLogger("contentbot")
 
 
 class AsyncRabbitMQConsumer:
+    """Asynchronous RabbitMQ consumer wrapper."""
+
     def __init__(
         self,
         amqp_url: str,
         queue_name: str,
         ssl_context: Optional[ssl.SSLContext] = None,
     ):
+        """
+        Initialise the consumer.
+
+        Args:
+            amqp_url (str): AMQP connection URL.
+            queue_name (str): Name of the queue to consume from.
+            ssl_context (Optional[ssl.SSLContext]): SSL context for secure connections.
+        """
         self._amqp_url = amqp_url
         self._queue_name = queue_name
         self._ssl_context = ssl_context
@@ -29,9 +39,7 @@ class AsyncRabbitMQConsumer:
         self._queue: Optional[AbstractQueue] = None
 
     async def start(self) -> None:
-        """
-        Connect to RabbitMQ and prepare the queue consumer.
-        """
+        """Establish a connection to RabbitMQ and declare the queue."""
         self._connection = await aio_pika.connect_robust(
             self._amqp_url,
             ssl=self._ssl_context is not None,
@@ -50,8 +58,15 @@ class AsyncRabbitMQConsumer:
 
     async def consume(self) -> AsyncGenerator[AbstractIncomingMessage, None]:
         """
-        Async generator yielding messages from RabbitMQ.
-        Manual ack is expected via msg.ack().
+        Yield messages from the queue as they arrive.
+
+        This is an async generator that:
+            - Iterates over the queue
+            - Yields each message for manual processing
+            - Expects the caller to ack/nack the message
+
+        Returns:
+            AsyncGenerator[AbstractIncomingMessage, None]: Stream of incoming messages.
         """
         if not self._queue:
             return
@@ -63,7 +78,10 @@ class AsyncRabbitMQConsumer:
 
     async def commit(self, msg: AbstractIncomingMessage) -> None:
         """
-        Acknowledge a message.
+        Acknowledge a message as successfully processed.
+
+        Args:
+            msg (AbstractIncomingMessage): The message to acknowledge.
         """
         try:
             await msg.ack()
@@ -72,7 +90,10 @@ class AsyncRabbitMQConsumer:
 
     async def stop(self) -> None:
         """
-        Close channel and connection.
+        Close the channel and connection gracefully.
+
+        This should be called during shutdown to ensure
+        that the AMQP connection is properly closed.
         """
         if self._channel:
             await self._channel.close()

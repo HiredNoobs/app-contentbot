@@ -10,7 +10,17 @@ logger = logging.getLogger("contentbot")
 
 
 class AsyncRabbitMQProducer:
+    """Asynchronous RabbitMQ producer wrapper."""
+
     def __init__(self, amqp_url: str, queue_name: str, ssl_context: Optional[ssl.SSLContext] = None):
+        """
+        Initialise the producer.
+
+        Args:
+            amqp_url (str): AMQP connection URL.
+            queue_name (str): Name of the queue to publish messages to.
+            ssl_context (Optional[ssl.SSLContext]): SSL context for secure connections.
+        """
         self._amqp_url = amqp_url
         self._queue_name = queue_name
         self._ssl_context = ssl_context
@@ -20,9 +30,7 @@ class AsyncRabbitMQProducer:
         self._queue = None
 
     async def start(self):
-        """
-        Establish connection and declare the queue.
-        """
+        """Establish a connection to RabbitMQ and declare the queue."""
         self._connection = await aio_pika.connect_robust(
             self._amqp_url,
             ssl=self._ssl_context is not None,
@@ -39,7 +47,11 @@ class AsyncRabbitMQProducer:
 
     async def send(self, data: dict) -> None:
         """
-        Publish a JSON message to the queue.
+        Publish a JSON encoded message to the queue.
+
+        Args:
+            data (dict): The message payload to send. It will be JSON encoded
+                and published to the configured queue.
         """
         if not self._channel:
             return
@@ -53,9 +65,7 @@ class AsyncRabbitMQProducer:
         )
 
     async def stop(self):
-        """
-        Close channel and connection.
-        """
+        """Close the AMQP channel and connection gracefully."""
         if self._channel:
             await self._channel.close()
 

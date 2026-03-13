@@ -10,7 +10,6 @@ from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.db.async_redis_db import AsyncRedisDB
 from contentbot.chatbot.processors.base_processor import BaseProcessor
 from contentbot.chatbot.utils.yt import get_channel_id_from_name, get_data_from_pattern
-from contentbot.common.queue.rabbitmq_consumer import AsyncRabbitMQConsumer
 from contentbot.common.queue.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.exceptions import QueueError
 
@@ -28,40 +27,63 @@ CHANNEL_PATTERN = re.compile(r"^(?=.{3,30}$)[A-Za-z0-9](?:[A-Za-z0-9_.\-·]*[A-Z
 
 
 class AsyncContentProcessor(BaseProcessor):
-    """Processor for content related events (mainly chat commands.)"""
+    """Processor for content related events."""
 
-    def __init__(
-        self,
-        sio: AsyncSocket,
-        db: AsyncRedisDB,
-        job_queue: AsyncRabbitMQProducer,
-        result_queue: AsyncRabbitMQConsumer,
-    ):
+    def __init__(self, sio: AsyncSocket, db: AsyncRedisDB, job_queue: AsyncRabbitMQProducer):
+        """
+        Initialise the content processor.
+
+        Args:
+            sio (AsyncSocket): Socket interface for sending chat messages.
+            db (AsyncRedisDB): Redis database interface for channel metadata.
+            job_queue (AsyncRabbitMQProducer): Queue for submitting content jobs.
+        """
         super().__init__(sio)
         self._db = db
         self._job_queue = job_queue
-        self._result_queue = result_queue
 
     # -----------------------------------------------------
     # Helper methods
     # -----------------------------------------------------
 
     @staticmethod
-    def _extract_id(resp: Dict) -> str:
-        if "id" in resp and resp["id"]:
-            return resp["id"]
+    def _extract_id(data: Dict) -> str:
+        """
+        Extract a video ID from a event payload.
 
-        link = resp.get("link")
+        Args:
+            data (Dict): Response dictionary containing an ID or link.
+
+        Returns:
+            str: Extracted ID.
+
+        Raises:
+            KeyError: If no valid ID can be found.
+        """
+        if "id" in data and data["id"]:
+            return data["id"]
+
+        link = data.get("link")
         if isinstance(link, str) and link.strip():
             return link.rstrip("/").split("/")[-1]
 
         try:
-            return resp["item"]["media"]["id"]
+            return data["item"]["media"]["id"]
         except Exception:
-            raise KeyError(f"No valid ID found in response: {resp}")
+            raise KeyError(f"No valid ID found in response: {data}")
 
     @staticmethod
     def _check_valid_channel_name(channel_name: str) -> bool:
+        """
+        Validate a channel name or ID using a regex pattern that should allow
+        both channel names and channel IDs.
+
+        Args:
+            channel_name (str): Channel name or ID to validate.
+
+        Returns:
+            bool: True if valid, otherwise False.
+        """
         if CHANNEL_PATTERN.match(channel_name):
             return True
         return False
@@ -71,30 +93,55 @@ class AsyncContentProcessor(BaseProcessor):
     # -----------------------------------------------------
 
     async def handle_chat_message(self, data: Dict):
+        """
+        Handle an incoming chat message.
+
+        Args:
+            data (Dict): Raw chat event payload.
+        """
         username, command, args = self._parse_chat_event(data)
         await self._handle_command(username, command, args)
 
     async def handle_change_media(self, data: Dict) -> None:
+        """
+        Set state in SIOData object based on the current media event.
+
+        Args:
+            data (Dict): Media metadata payload.
+        """
         self._sio.data.current_media = data
 
     async def handle_media_update(self, data: Dict) -> None:
+        """
+        Handle updates to the current media playback time.
+
+        Args:
+            data (Dict): Contains the updated playback timestamp.
+        """
         self._sio.data.update_current_time(data["currentTime"])
 
     async def handle_new_content(self, msg: IncomingMessage) -> None:
+        """
+        Handle new content arriving from RabbitMQ.
+
+        This includes:
+            - Extracting video metadata
+            - Adding the video to the Cytube queue
+            - Updating Redis timestamps
+            - Managing pending message acknowledgements
+
+        Args:
+            msg (IncomingMessage): RabbitMQ message containing content data.
+        """
         content = json.loads(msg.body)
         video_id = content["video_id"]
 
-        # Random videos don't include channel details or a dt to update
         channel_id = content.get("channel_id")
         dt = content.get("datetime")
 
         try:
             self._sio.data.add_pending(video_id, msg)
         except QueueError:
-            # This error would mean the bot is re-processing content
-            # that has already been emitted but before we hear back
-            # from Cytube. Not sure if this is possible outside of
-            # duplicate values ending up in the queue?
             await msg.nack(requeue=False)
             return
 
@@ -107,6 +154,12 @@ class AsyncContentProcessor(BaseProcessor):
             await msg.nack(requeue=True)
 
     async def handle_successful_queue(self, data: Dict) -> None:
+        """
+        Handle a successful Cytube queue event by acknowledging the RabbitMQ message.
+
+        Args:
+            data (Dict): Payload containing the video ID.
+        """
         video_id = self._extract_id(data)
 
         msg = self._sio.data.get_pending(video_id)
@@ -122,6 +175,12 @@ class AsyncContentProcessor(BaseProcessor):
             self._sio.data.remove_pending(video_id)
 
     async def handle_failed_queue(self, data: Dict) -> None:
+        """
+        Handle a failed Cytube queue event by nacking the RabbitMQ message.
+
+        Args:
+            data (Dict): Payload containing the video ID.
+        """
         video_id = self._extract_id(data)
 
         msg = self._sio.data.get_pending(video_id)
@@ -144,6 +203,14 @@ class AsyncContentProcessor(BaseProcessor):
     # -----------------------------------------------------
 
     async def _handle_command(self, username: str, command: str, args: List[str]) -> None:
+        """
+        Route a parsed chat command to the appropriate handler.
+
+        Args:
+            username (str): User issuing the command.
+            command (str): Command keyword.
+            args (List[str]): Command arguments.
+        """
         match command:
             case "add_channel":
                 if not self._sio.data.is_user_admin(username):
@@ -186,11 +253,7 @@ class AsyncContentProcessor(BaseProcessor):
                 except ValueError:
                     size = 3
 
-                if command == "random_word":
-                    word = True
-                else:
-                    word = False
-
+                word = command == "random_word"
                 await self._cmd_random(size, word)
             case "remove_channel" | "remove_channels":
                 if not self._sio.data.is_user_admin(username):
@@ -215,6 +278,13 @@ class AsyncContentProcessor(BaseProcessor):
                 await self._db.remove_tags(channel, tags)
 
     async def _cmd_add_channel(self, channel_name: str, tags: Optional[List[str]] = None) -> None:
+        """
+        Add a new channel to the database.
+
+        Args:
+            channel_name (str): Channel name or ID.
+            tags (Optional[List[str]]): Optional list of tags.
+        """
         if not self._check_valid_channel_name(channel_name):
             await self._sio.send_chat_msg(f"{channel_name} isn't a valid channel name or ID.")
             return
@@ -236,6 +306,13 @@ class AsyncContentProcessor(BaseProcessor):
             await self._sio.send_chat_msg(f"Failed to add '{channel_name}' to DB.")
 
     async def _cmd_add_tags(self, channel_name: str, tags: List[str]) -> None:
+        """
+        Add tags to an existing channel.
+
+        Args:
+            channel_name (str): Channel name.
+            tags (List[str]): Tags to add.
+        """
         tags = [tag for tag in tags if tag.isalpha()]
         if not tags:
             await self._sio.send_chat_msg("No valid tags provided.")
@@ -250,23 +327,32 @@ class AsyncContentProcessor(BaseProcessor):
         await self._sio.send_chat_msg(f"{tags} added to {channel_name}")
 
     async def _cmd_content_search(self, tags: List[str]) -> None:
+        """
+        Trigger content searches for channels matching the given tags.
+
+        Args:
+            tags (List[str]): Tags to filter channels by.
+        """
         if tags:
             tags = [tag for tag in tags if tag.isalpha()]
         else:
             tags = [""]
 
         for tag in tags:
-            # Stops content jobs being added over and over again
+            now = datetime.now()
             last_pull = self._sio.data.get_last_content_pull(tag)
             if last_pull:
-                if last_pull < datetime.now() - timedelta(minutes=5):
+                if last_pull < now - timedelta(minutes=5):
                     continue
 
             channels = await self._db.get_channels(tag=tag)
             for channel in channels:
                 await self._job_queue.send(channel)
 
+            self._sio.data.update_last_content_pull(now, tag=tag)
+
     async def _cmd_current(self) -> None:
+        """Display the description of the currently playing media item."""
         current = self._sio.data.current_media
         if not current:
             return None
@@ -284,5 +370,13 @@ class AsyncContentProcessor(BaseProcessor):
         await self._sio.send_chat_msg(desc)
 
     async def _cmd_random(self, size: int, word: bool) -> None:
+        """
+        Request a random video or random word based content job.
+
+        Args:
+            size (int): Size of the random string to generate.
+            word (bool): Whether to use a random word rather than
+            a random string.
+        """
         d = {"random_size": size, "random_word": word}
         await self._job_queue.send(d)
