@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: Tests
 
 on:
   push:
@@ -10,28 +10,33 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    container:
-      image: python:3.14.3-slim-trixie
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
       - name: Install system dependencies
         run: |
-          apt-get update
-          apt-get install --no-install-recommends -y \
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
             gcc \
             build-essential
-          rm -rf /var/lib/apt/lists/*
 
       - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-py${{ matrix.python-version }}-pip-
 
       - name: Install project with dev extras
         run: |

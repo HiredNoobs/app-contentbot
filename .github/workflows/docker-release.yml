@@ -1,0 +1,37 @@
+name: Release Docker Image
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Extract version from tag
+        id: vars
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          docker build -t hirednoobs/contentbot:${VERSION} .
+
+      - name: Tag image as latest
+        run: |
+          docker tag hirednoobs/contentbot:${VERSION} hirednoobs/contentbot:latest
+
+      - name: Push versioned and latest tags
+        run: |
+          docker push hirednoobs/contentbot:${VERSION}
+          docker push hirednoobs/contentbot:latest
