@@ -6,7 +6,7 @@ from typing import Dict, Optional
 import socketio
 
 from contentbot.chatbot.sio_data import SIOData
-from contentbot.utils.api_query import query_endpoint
+from contentbot.common.utils.api_query import query_endpoint
 
 logger: logging.Logger = logging.getLogger("contentbot")
 

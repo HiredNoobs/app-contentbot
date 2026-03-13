@@ -1,7 +1,9 @@
 import re
-from typing import Optional
+from typing import Dict, Optional
 
-from contentbot.utils.api_query import get_data_from_pattern
+from bs4 import BeautifulSoup as bs
+
+from contentbot.common.utils.api_query import query_endpoint
 
 
 def clean_yt_string(channel_name_or_url: str) -> str:
@@ -49,3 +51,22 @@ def get_channel_id_from_name(channel_name: str) -> Optional[str]:
         if channel_id:
             return channel_id
     return None
+
+
+def get_data_from_pattern(
+    url: str, pattern: str, cookies: Optional[Dict] = None, script_tag_name: str = "ytInitialData"
+) -> Optional[str]:
+    """
+    query_endpoint wrapper that also extracts from a YouTube page based on a regex pattern.
+    """
+    try:
+        resp = query_endpoint(url, cookies=cookies)
+        soup = bs(resp.text, "lxml")
+        script_tag = soup.find("script", string=re.compile(script_tag_name))  # type: ignore
+        if not script_tag:
+            return None
+
+        match = re.search(pattern, script_tag.text)
+        return match.group(1) if match else None
+    except Exception:
+        return None  # Should this be an exception...?

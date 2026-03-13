@@ -9,11 +9,10 @@ from aio_pika import IncomingMessage
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.db.async_redis_db import AsyncRedisDB
 from contentbot.chatbot.processors.base_processor import BaseProcessor
-from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
-from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
+from contentbot.chatbot.utils.yt import get_channel_id_from_name, get_data_from_pattern
+from contentbot.common.queue.rabbitmq_consumer import AsyncRabbitMQConsumer
+from contentbot.common.queue.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.exceptions import QueueError
-from contentbot.utils.api_query import get_data_from_pattern
-from contentbot.utils.yt import get_channel_id_from_name
 
 logger: logging.Logger = logging.getLogger("contentbot")
 

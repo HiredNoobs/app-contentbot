@@ -15,10 +15,10 @@ from contentbot.chatbot.processors.async_blackjack_processor import (
 from contentbot.chatbot.processors.async_content_processor import AsyncContentProcessor
 from contentbot.chatbot.processors.async_event_processor import AsyncEventProcessor
 from contentbot.chatbot.sio_data import SIOData
-from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
-from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
+from contentbot.common.queue.rabbitmq_consumer import AsyncRabbitMQConsumer
+from contentbot.common.queue.rabbitmq_producer import AsyncRabbitMQProducer
+from contentbot.common.utils.ssl import create_ssl_context
 from contentbot.configuration import Configuration
-from contentbot.utils.ssl import create_ssl_context
 from contentbot.worker.content_finder import ContentFinder
 from contentbot.worker.random_finder import RandomFinder
 

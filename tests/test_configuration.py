@@ -82,10 +82,7 @@ class TestConfiguration:
         cfg = Configuration(config_file, secrets_file)
         cfg.read()
 
-        # db_host unchanged
         assert cfg.db_host == "database"
-
-        # RabbitMQ URL without domain
         assert cfg.rabbitmq_url == ("amqps://rmquser:rmqpass@rabbit:5671/")
 
     def test_to_dict_excludes_private_fields(self, config_file, secrets_file):

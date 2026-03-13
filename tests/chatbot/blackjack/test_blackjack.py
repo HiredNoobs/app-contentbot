@@ -24,7 +24,7 @@ def game():
 class TestBlackjack:
     @pytest.mark.asyncio
     async def test_add_player(self, game):
-        game.start_game()  # must be in joining state
+        game.start_game()
         await game.add_player("Alice")
         assert "Alice" in game._players
         assert isinstance(game._players["Alice"], Player)

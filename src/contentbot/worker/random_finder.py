@@ -4,7 +4,7 @@ import random
 import string
 from typing import Dict, Optional
 
-from contentbot.utils.api_query import query_endpoint
+from contentbot.common.utils.api_query import query_endpoint
 
 logger: logging.Logger = logging.getLogger("contentbot")
 

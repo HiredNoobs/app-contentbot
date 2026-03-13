@@ -6,7 +6,7 @@ import requests
 from bs4 import BeautifulSoup as bs
 from bs4 import element
 
-from contentbot.utils.api_query import query_endpoint
+from contentbot.common.utils.api_query import query_endpoint
 
 logger: logging.Logger = logging.getLogger("contentbot")
 

@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 import redis.asyncio as redis
 from bs4 import BeautifulSoup as bs
 
-from contentbot.utils.api_query import query_endpoint
+from contentbot.common.utils.api_query import query_endpoint
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
