@@ -2,7 +2,7 @@ import json
 import logging
 import random
 import string
-from typing import Dict
+from typing import Dict, Optional
 
 from contentbot.utils.api_query import query_endpoint
 
@@ -10,7 +10,7 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class RandomFinder:
-    def __init__(self, dictonary_file: str):
+    def __init__(self, dictonary_file: Optional[str]):
         self._dictonary_file = dictonary_file
 
     def find_random(self, size: int, use_dict: bool) -> Dict[str, str]:

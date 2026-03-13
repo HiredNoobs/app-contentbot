@@ -17,7 +17,7 @@ class Configuration:
         self._domain = os.getenv("DOMAIN", None)
 
     def read(self) -> None:
-        if not self._path or self._secrets_path:
+        if not self._path or not self._secrets_path:
             raise ConfigurationError("Config file or secret config file not set.")
 
         self._read_conf()
@@ -27,7 +27,7 @@ class Configuration:
         with open(self._path) as file:
             config: Dict[str, Any] = yaml.safe_load(file)
 
-        self.dictonary_file = config["dictonary_file"]
+        self.dictonary_file = config.get("dictonary_file")
 
         # Cytube
         self.cytube_url = config["cytube_url"]

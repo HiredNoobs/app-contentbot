@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 
 from contentbot.chatbot.sio_data import SIOData
+from contentbot.exceptions import QueueError
 
 
 class FakeIncomingMessage:
@@ -145,6 +146,7 @@ class TestSIOData:
 
     def test_only_remaining_user(self):
         data = SIOData()
+        data.logged_in = True
         data.user = "bot"
 
         data.add_or_update_user("bot", 3)
@@ -169,7 +171,7 @@ class TestSIOData:
         msg = FakeIncomingMessage()
 
         data.add_pending("vid123", msg)
-        with pytest.raises(ValueError):
+        with pytest.raises(QueueError):
             data.add_pending("vid123", msg)
 
     def test_remove_pending(self):
