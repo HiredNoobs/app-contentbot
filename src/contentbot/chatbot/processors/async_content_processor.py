@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -22,6 +23,9 @@ ACCEPTABLE_ERRORS = {
     "The uploader has made this video non-embeddable",
     "This video has not been processed yet.",
 }
+
+# This should match both channel names and channel IDs
+CHANNEL_PATTERN = re.compile(r"^(?=.{3,30}$)[A-Za-z0-9](?:[A-Za-z0-9_.\-·]*[A-Za-z0-9])$")
 
 
 class AsyncContentProcessor(BaseProcessor):
@@ -56,6 +60,12 @@ class AsyncContentProcessor(BaseProcessor):
             return resp["item"]["media"]["id"]
         except Exception:
             raise KeyError(f"No valid ID found in response: {resp}")
+
+    @staticmethod
+    def _check_valid_channel_name(channel_name: str) -> bool:
+        if CHANNEL_PATTERN.match(channel_name):
+            return True
+        return False
 
     # -----------------------------------------------------
     # Event handlers
@@ -144,7 +154,7 @@ class AsyncContentProcessor(BaseProcessor):
                     await self._sio.send_chat_msg("No channel provided.")
                     return
 
-                await self._cmd_add_channel(args[0], args[1:])
+                await self._cmd_add_channel(args[0], tags=args[1:])
             case "add_channels":
                 if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
@@ -205,7 +215,14 @@ class AsyncContentProcessor(BaseProcessor):
                 tags = args[1:]
                 await self._db.remove_tags(channel, tags)
 
-    async def _cmd_add_channel(self, channel_name: str, tags: Optional[List] = None) -> None:
+    async def _cmd_add_channel(self, channel_name: str, tags: Optional[List[str]] = None) -> None:
+        if not self._check_valid_channel_name(channel_name):
+            await self._sio.send_chat_msg(f"{channel_name} isn't a valid channel name or ID.")
+            return
+
+        if tags:
+            tags = [tag for tag in tags if tag.isalpha()]
+
         channel_id = get_channel_id_from_name(channel_name)
 
         if not channel_id:
@@ -220,16 +237,24 @@ class AsyncContentProcessor(BaseProcessor):
             await self._sio.send_chat_msg(f"Failed to add '{channel_name}' to DB.")
 
     async def _cmd_add_tags(self, channel_name: str, tags: List[str]) -> None:
+        tags = [tag for tag in tags if tag.isalpha()]
+        if not tags:
+            await self._sio.send_chat_msg("No valid tags provided.")
+            return
+
         channel_id = await self._db.get_channel_id(channel_name)
         if not channel_id:
             await self._sio.send_chat_msg(f"{channel_name} not in DB.")
             return
+
         await self._db.add_tags(channel_id, tags)
         await self._sio.send_chat_msg(f"{tags} added to {channel_name}")
 
-    async def _cmd_content_search(self, tags: List) -> None:
-        if not tags:
-            tags = [None]
+    async def _cmd_content_search(self, tags: List[str]) -> None:
+        if tags:
+            tags = [tag for tag in tags if tag.isalpha()]
+        else:
+            tags = [""]
 
         for tag in tags:
             # Stops content jobs being added over and over again
