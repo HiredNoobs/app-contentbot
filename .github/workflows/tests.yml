@@ -56,3 +56,8 @@ jobs:
       - name: Run flake8
         run: |
           flake8 contentbot tests
+
+      - name: Run isort
+        run: |
+          isort --check-only --diff src/contentbot tests
+
