@@ -87,7 +87,9 @@ class AsyncChatBot:
 
             command = command[1:]
 
-            if command in Commands.STANDARD_COMMANDS.value.keys():
+            if command in Commands.GENERAL_COMMANDS.value.keys():
+                await self._event_processor.handle_chat_message(data)
+            elif command in Commands.CONTENT_COMMANDS.value.keys():
                 await self._content_processor.handle_chat_message(data)
             elif command in Commands.BLACKJACK_COMMANDS.value.keys():
                 await self._blackjack_processor.handle_chat_message(data)

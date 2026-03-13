@@ -5,8 +5,9 @@ from enum import Enum
 class Commands(Enum):
     COMMAND_SYMBOL = os.getenv("COMMAND_SYMBOL", "!")
 
-    STANDARD_COMMANDS = {
-        "standard_help": "Prints out general commands.",
+    GENERAL_COMMANDS = {"help": "Prints out commands."}
+
+    CONTENT_COMMANDS = {
         "add_channel": "Add a single channel to the database. Additional args will become tags! Usage: `add_channel CHANNEL tag_1 ... tag_N`.",
         "add_channels": "Add channels to database. Usage: `add_channels CHANNEL_NAME_1 ... CHANNEL_NAME_N`.",
         "add_tags": "Add tags to an existing channel. Usage: `add_tags CHANNEL_NAME TAG_1 ... TAG_N`.",
@@ -20,7 +21,6 @@ class Commands(Enum):
     }
 
     BLACKJACK_COMMANDS = {
-        "blackjack_help": "Prints out blackjack commands.",
         "bet": "Place your wager before the round begins. Usage: `bet AMOUNT`.",
         "hit": "Take another card from the dealer. Usage: `hit`.",
         "join": "Join the current blackjack table. Usage: `join`.",
@@ -31,3 +31,10 @@ class Commands(Enum):
         "start_blackjack": "Start a new blackjack round. Usage: `start_blackjack`.",
         "stop_blackjack": "Stop the current blackjack game. Usage: `stop_blackjack`.",
     }
+
+    @classmethod
+    def get_group(cls, name: str) -> dict:
+        try:
+            return cls[name.upper() + "_COMMANDS"].value
+        except KeyError:
+            raise ValueError(f"Unknown command group: {name}")

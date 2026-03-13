@@ -1,17 +1,15 @@
 import logging
-from typing import Dict
+from typing import Dict, List
 
-from contentbot.chatbot.async_socket import AsyncSocket
+from contentbot.chatbot.commands import Commands
+from contentbot.chatbot.processors.base_processor import BaseProcessor
 from contentbot.exceptions import AuthenticationError
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
 
-class AsyncEventProcessor:
+class AsyncEventProcessor(BaseProcessor):
     """Generic event processor."""
-
-    def __init__(self, sio: AsyncSocket) -> None:
-        self._sio = sio
 
     # -----------------------------------------------------
     # Event handlers
@@ -25,6 +23,10 @@ class AsyncEventProcessor:
 
     def handle_disconnect(self):
         self._sio.data.reset_data()
+
+    async def handle_chat_message(self, data: Dict):
+        username, command, args = self._parse_chat_event(data)
+        await self._handle_command(username, command, args)
 
     async def handle_user_join(self, data: Dict) -> None:
         user = data["name"]
@@ -82,3 +84,27 @@ class AsyncEventProcessor:
 
         if self._sio.data.only_remaining_user():
             await self._sio.become_leader()
+
+    # -----------------------------------------------------
+    # Command handlers
+    # -----------------------------------------------------
+
+    async def _handle_command(self, username: str, command: str, args: List[str]) -> None:
+        match command:
+            case "help":
+                await self._cmd_help(args)
+
+    async def _cmd_help(self, contexts: List[str]) -> None:
+        if not contexts:
+            contexts = ["GENERAL", "CONTENT", "BLACKJACK"]
+
+        for context in contexts:
+            try:
+                commands = Commands.get_group(context)
+            except ValueError:
+                await self._sio.send_chat_msg(f"{context} is not a valid command set.")
+                continue
+
+            await self._sio.send_chat_msg(f"{context} commands:")
+            for cmd, desc in commands.items():
+                await self._sio.send_chat_msg(f"{Commands.COMMAND_SYMBOL.value}{cmd} — {desc}")

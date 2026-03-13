@@ -7,6 +7,7 @@ from aio_pika import IncomingMessage
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.db.async_redis_db import AsyncRedisDB
+from contentbot.chatbot.processors.base_processor import BaseProcessor
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
 from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.exceptions import QueueError
@@ -23,7 +24,7 @@ ACCEPTABLE_ERRORS = {
 }
 
 
-class AsyncContentProcessor:
+class AsyncContentProcessor(BaseProcessor):
     """Processor for content related events (mainly chat commands.)"""
 
     def __init__(
@@ -33,7 +34,7 @@ class AsyncContentProcessor:
         job_queue: AsyncRabbitMQProducer,
         result_queue: AsyncRabbitMQConsumer,
     ):
-        self._sio = sio
+        super().__init__(sio)
         self._db = db
         self._job_queue = job_queue
         self._result_queue = result_queue
@@ -61,13 +62,7 @@ class AsyncContentProcessor:
     # -----------------------------------------------------
 
     async def handle_chat_message(self, data: Dict):
-        username = data.get("username", "")
-        msg = data.get("msg", "")
-
-        msg_parts = msg.split()
-        command = msg_parts[0].casefold()[1:]
-        args = msg_parts[1:] if len(msg_parts) > 1 else []
-
+        username, command, args = self._parse_chat_event(data)
         await self._handle_command(username, command, args)
 
     async def handle_change_media(self, data: Dict) -> None:
