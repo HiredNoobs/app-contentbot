@@ -2,14 +2,14 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict
 
-from contentbot.chatbot.async_event_processor import AsyncEventProcessor
 from contentbot.chatbot.async_socket import AsyncSocket
-from contentbot.chatbot.blackjack.async_blackjack_processor import (
+from contentbot.chatbot.commands import Commands
+from contentbot.chatbot.db.async_redis_db import AsyncRedisDB
+from contentbot.chatbot.processors.async_blackjack_processor import (
     AsyncBlackjackProcessor,
 )
-from contentbot.chatbot.commands import Commands
-from contentbot.chatbot.content.async_content_processor import AsyncContentProcessor
-from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
+from contentbot.chatbot.processors.async_content_processor import AsyncContentProcessor
+from contentbot.chatbot.processors.async_event_processor import AsyncEventProcessor
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
 
 logger: logging.Logger = logging.getLogger("contentbot")

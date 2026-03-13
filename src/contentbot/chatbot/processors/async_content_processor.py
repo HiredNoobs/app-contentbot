@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from aio_pika import IncomingMessage
 
 from contentbot.chatbot.async_socket import AsyncSocket
-from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
+from contentbot.chatbot.db.async_redis_db import AsyncRedisDB
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
 from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.exceptions import QueueError

@@ -7,13 +7,13 @@ from typing import Dict, List
 import click
 
 from contentbot.chatbot.async_chat_bot import AsyncChatBot
-from contentbot.chatbot.async_event_processor import AsyncEventProcessor
 from contentbot.chatbot.async_socket import AsyncSocket
-from contentbot.chatbot.blackjack.async_blackjack_processor import (
+from contentbot.chatbot.db.async_redis_db import AsyncRedisDB
+from contentbot.chatbot.processors.async_blackjack_processor import (
     AsyncBlackjackProcessor,
 )
-from contentbot.chatbot.content.async_content_processor import AsyncContentProcessor
-from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
+from contentbot.chatbot.processors.async_content_processor import AsyncContentProcessor
+from contentbot.chatbot.processors.async_event_processor import AsyncEventProcessor
 from contentbot.chatbot.sio_data import SIOData
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
 from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
