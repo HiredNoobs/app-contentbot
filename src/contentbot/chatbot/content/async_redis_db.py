@@ -120,35 +120,7 @@ class AsyncRedisDB:
 
         return channels
 
-    # TODO: Add optional tags & check if channel already in DB.
-    async def add_channel(self, channel_id: str, channel_name: str) -> None:
-        url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-
-        try:
-            resp = query_endpoint(url)
-            resp.raise_for_status()
-        except Exception:
-            logger.exception(f"Failed to fetch feed for {channel_id}")
-            return
-
-        soup = bs(resp.text, "lxml")
-        try:
-            entry = soup.find_all("entry")[0]
-            published = entry.find_all("published")[0].text
-        except Exception:
-            logger.error(f"Failed to parse feed for {channel_id}")
-            return
-
-        data = {
-            "channelId": channel_id,
-            "name": channel_name,
-            "last_update": published,
-            "tags": [],
-        }
-        await self._save_channel_data(channel_id, data)
-
-    # Would it be easier to do channel_name -> lookup ID -> DEL key?
-    async def remove_channel(self, channel_name: str) -> None:
+    async def get_channel_id(self, channel_name: str) -> Optional[str]:
         async for key in self._redis.scan_iter("*@youtube.channel.id"):
             raw = await self._redis.get(key)
             if not raw or not isinstance(raw, str):
@@ -160,8 +132,69 @@ class AsyncRedisDB:
                 continue
 
             if data.get("name") == channel_name:
+                return data.get("channelId")
+
+        return None
+
+    async def _channel_exists(self, channel_id: str) -> bool:
+        """Checks if a given channel ID is already in Redis."""
+        return await self._redis.exists(f"{channel_id}@youtube.channel.id") > 0
+
+    async def add_channel(self, channel_id: str, channel_name: str, tags: Optional[List] = None) -> bool:
+        """
+        Add a channel to Redis.
+
+        Returns True if successful, False otherwise.
+        """
+        if self._channel_exists(channel_id):
+            return False
+
+        if not tags:
+            tags = []
+
+        url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+
+        try:
+            resp = query_endpoint(url)
+            resp.raise_for_status()
+        except Exception:
+            logger.exception(f"Failed to fetch feed for {channel_id}")
+            return False
+
+        soup = bs(resp.text, "lxml")
+        try:
+            entry = soup.find_all("entry")[0]
+            published = entry.find_all("published")[0].text
+        except Exception:
+            logger.error(f"Failed to parse feed for {channel_id}")
+            return False
+
+        data = {
+            "channelId": channel_id,  # TODO: Update Redis to use "channel_id"
+            "name": channel_name,
+            "last_update": published,
+            "tags": tags,
+        }
+        await self._save_channel_data(channel_id, data)
+        return True
+
+    async def remove_channels(self, channel_names: List[str]) -> int:
+        deleted_count = 0
+        async for key in self._redis.scan_iter("*@youtube.channel.id"):
+            raw = await self._redis.get(key)
+            if not raw or not isinstance(raw, str):
+                continue
+
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            if data.get("name") in channel_names:
                 await self._redis.delete(key)
-                return
+                deleted_count += 1
+
+        return deleted_count
 
     async def add_tags(self, channel_id: str, new_tags: List[str]) -> None:
         data = await self._load_channel_data(channel_id)

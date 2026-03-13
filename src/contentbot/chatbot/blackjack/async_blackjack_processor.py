@@ -2,9 +2,12 @@ from typing import Dict, List
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.blackjack.blackjack import BlackjackGame
+from contentbot.chatbot.blackjack.utils import calculate_hand_value
 
 
 class AsyncBlackjackProcessor:
+    """Processor for Blackjack events (mainly chat commands.)"""
+
     def __init__(self, sio: AsyncSocket) -> None:
         self._sio = sio
 
@@ -27,7 +30,7 @@ class AsyncBlackjackProcessor:
 
     async def _handle_end_round(self) -> None:
         self._blackjack.dealer_play()
-        dealer_value = self._blackjack.calculate_hand_value(self._blackjack.dealer_hand)
+        dealer_value = calculate_hand_value(self._blackjack.dealer_hand)
         await self._sio.send_chat_msg(
             f"Dealer's hand: {self._blackjack.dealer_hand} (Value: {dealer_value})",
         )

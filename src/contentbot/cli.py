@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Dict
+from typing import Dict, List
 
 import click
 
@@ -71,11 +71,18 @@ async def run_chatbot(cfg: Dict) -> None:
     blackjack_processor = AsyncBlackjackProcessor(sio)
     bot = AsyncChatBot(sio, event_processor, content_processor, blackjack_processor, db, result_consumer)
 
+    tasks: List[asyncio.Task] = [asyncio.create_task(bot.run()), asyncio.create_task(bot.read_content_queue())]
+
     try:
-        await asyncio.gather(
-            bot.run(),
-            bot.read_content_queue(),
-        )
+        await asyncio.gather(*tasks)
+    except Exception:
+        logger.exception("Task raised an unhandled exception. Shutting down.")
+
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+
+        await asyncio.gather(*task, return_exceptions=True)
     finally:
         await job_producer.stop()
         await result_consumer.stop()
@@ -116,7 +123,7 @@ async def run_worker(cfg: Dict) -> None:
     await result_producer.start()
 
     content_finder = ContentFinder()
-    random_finder = RandomFinder()
+    random_finder = RandomFinder(cfg["dictonary_file"])
 
     try:
         async for msg in job_consumer.consume():

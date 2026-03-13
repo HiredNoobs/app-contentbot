@@ -10,14 +10,15 @@ logger: logging.Logger = logging.getLogger("contentbot")
 
 
 class RandomFinder:
+    def __init__(self, dictonary_file: str):
+        self._dictonary_file = dictonary_file
+
     def find_random(self, size: int, use_dict: bool) -> Dict[str, str]:
         if 0 > size > 10:
             size = 3
 
-        if use_dict:
-            # This file is downloaded by the Dockerfile
-            # TODO: This file location should probably come from the conf file
-            with open("/app/cytubebot/randomvideo/eng_dict.txt") as file:
+        if use_dict and self._dictonary_file:
+            with open(self._dictonary_file) as file:
                 lines = file.read().splitlines()
                 rand_str = random.choice(lines)
         else:

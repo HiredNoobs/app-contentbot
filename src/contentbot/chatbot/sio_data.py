@@ -5,6 +5,8 @@ from typing import Dict, Optional
 
 from aio_pika import IncomingMessage
 
+from contentbot.exceptions import QueueError
+
 logger = logging.getLogger("contentbot")
 
 
@@ -15,6 +17,7 @@ class SIOData:
     _users: Dict[str, int] = field(default_factory=dict)
     _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
     _last_content_pull: Dict[str, datetime] = field(default_factory=dict)
+    _logged_in: bool = False
 
     # Any checks for Cytube permissions should use the _channel_perms
     # but interally the bot reuses the admin/mod levels for some commands.
@@ -89,6 +92,11 @@ class SIOData:
         return self.users.get(username, 0) >= self._moderator_permission_level
 
     def only_remaining_user(self) -> bool:
+        """
+        Checks if the bot is the only logged in user in the channel.
+        """
+        if not self._logged_in:
+            return False
         users = list(self._users.keys())
         return len(users) == 1 and users[0] == self._user
 
@@ -107,8 +115,7 @@ class SIOData:
         if video_id not in self._pending:
             self._pending[video_id] = msg
         else:
-            # TODO: Add a custom exception for this
-            raise ValueError(f"{video_id} already pending")
+            raise QueueError(f"{video_id} already pending")
 
     def remove_pending(self, video_id: str) -> None:
         try:
@@ -141,3 +148,15 @@ class SIOData:
     @channel_permissions.setter
     def channel_permissions(self, permissions: Dict[str, int]) -> None:
         self._channel_permissions = permissions
+
+    # ------------------------------------------------------------------
+    # Logged in
+    # ------------------------------------------------------------------
+
+    @property
+    def logged_in(self) -> bool:
+        return self._logged_in
+
+    @logged_in.setter
+    def logged_in(self, value: bool) -> None:
+        self._logged_in = value

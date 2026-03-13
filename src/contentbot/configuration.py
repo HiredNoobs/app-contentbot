@@ -4,6 +4,8 @@ from typing import Any, Dict
 
 import yaml
 
+from contentbot.exceptions import ConfigurationError
+
 logger: logging.Logger = logging.getLogger("contentbot")
 
 
@@ -15,12 +17,17 @@ class Configuration:
         self._domain = os.getenv("DOMAIN", None)
 
     def read(self) -> None:
+        if not self._path or self._secrets_path:
+            raise ConfigurationError("Config file or secret config file not set.")
+
         self._read_conf()
         self._read_secrets_conf()
 
     def _read_conf(self) -> None:
         with open(self._path) as file:
             config: Dict[str, Any] = yaml.safe_load(file)
+
+        self.dictonary_file = config["dictonary_file"]
 
         # Cytube
         self.cytube_url = config["cytube_url"]
@@ -32,9 +39,9 @@ class Configuration:
         self.db_port = config["db_port"]
         self.db_index = config["db_index"]
 
-        self.db_ca_cert = config["db_ca_cert"]
-        self.db_cert = config["db_cert"]
-        self.db_key = config["db_key"]
+        self.db_ca_cert = config.get("db_ca_cert")
+        self.db_cert = config.get("db_cert")
+        self.db_key = config.get("db_key")
 
         # RabbitMQ
         self._rabbit_host = config["rabbitmq_host"]
@@ -43,9 +50,9 @@ class Configuration:
         self.rabbitmq_job_queue = config["rabbitmq_job_queue"]
         self.rabbitmq_result_queue = config["rabbitmq_result_queue"]
 
-        self.rabbitmq_ca_cert = config["rabbitmq_ca_cert"]
-        self.rabbitmq_cert = config["rabbitmq_cert"]
-        self.rabbitmq_key = config["rabbitmq_key"]
+        self.rabbitmq_ca_cert = config.get("rabbitmq_ca_cert")
+        self.rabbitmq_cert = config.get("rabbitmq_cert")
+        self.rabbitmq_key = config.get("rabbitmq_key")
 
     def _read_secrets_conf(self) -> None:
         with open(self._secrets_path) as file:
@@ -56,12 +63,12 @@ class Configuration:
         self.cytube_pass = secrets["cytube_pass"]
 
         # Database
-        self.db_user = secrets["db_user"]
-        self.db_pass = secrets["db_pass"]
+        self.db_user = secrets.get("db_user")
+        self.db_pass = secrets.get("db_pass")
 
         # RabbitMQ
-        rabbitmq_user = secrets["rabbitmq_user"]
-        rabbitmq_pass = secrets["rabbitmq_pass"]
+        rabbitmq_user = secrets.get("rabbitmq_user", "guest")
+        rabbitmq_pass = secrets.get("rabbitmq_pass", "guest")
 
         if self._domain:
             self.rabbitmq_url = (

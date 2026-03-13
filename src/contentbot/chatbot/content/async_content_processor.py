@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from aio_pika import IncomingMessage
 
@@ -9,8 +9,9 @@ from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.content.async_redis_db import AsyncRedisDB
 from contentbot.common.rabbitmq_consumer import AsyncRabbitMQConsumer
 from contentbot.common.rabbitmq_producer import AsyncRabbitMQProducer
+from contentbot.exceptions import QueueError
 from contentbot.utils.api_query import get_data_from_pattern
-from contentbot.utils.yt import clean_yt_string
+from contentbot.utils.yt import get_channel_id_from_name
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
@@ -23,6 +24,8 @@ ACCEPTABLE_ERRORS = {
 
 
 class AsyncContentProcessor:
+    """Processor for content related events (mainly chat commands.)"""
+
     def __init__(
         self,
         sio: AsyncSocket,
@@ -81,7 +84,15 @@ class AsyncContentProcessor:
         channel_id = content.get("channel_id")
         dt = content.get("datetime")
 
-        self._sio.data.add_pending(video_id, msg)
+        try:
+            self._sio.data.add_pending(video_id, msg)
+        except QueueError:
+            # This error would mean the bot is re-processing content
+            # that has already been emitted but before we hear back
+            # from Cytube. Not sure if this is possible outside of
+            # duplicate values ending up in the queue?
+            await msg.nack(requeue=False)
+            return
 
         try:
             await self._sio.add_video_to_queue(video_id)
@@ -130,30 +141,39 @@ class AsyncContentProcessor:
 
     async def _handle_command(self, username: str, command: str, args: List[str]) -> None:
         match command:
-            case "add":
-                if self._sio.data.is_user_admin(username):
-                    if not args:
-                        await self._sio.send_chat_msg("No channels provided.")
-                        return
-
-                    for channel in args:
-                        await self._cmd_add_channel(channel)
-                else:
+            case "add_channel":
+                if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
+
+                if not args:
+                    await self._sio.send_chat_msg("No channel provided.")
+                    return
+
+                await self._cmd_add_channel(args[0], args[1:])
+            case "add_channels":
+                if not self._sio.data.is_user_admin(username):
+                    await self._sio.send_chat_msg("You don't have permission to do that.")
+
+                if not args:
+                    await self._sio.send_chat_msg("No channels provided.")
+                    return
+
+                for channel in args:
+                    await self._cmd_add_channel(channel)
             case "add_tags":
-                if self._sio.data.is_user_admin(username):
-                    if len(args) < 2:
-                        await self._sio.send_chat_msg("Missing args for add_tags.")
-                        return
-
-                    channel = args[0]
-                    tags = args[1:]
-                    await self._db.add_tags(channel, tags)
-                else:
+                if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
+
+                if len(args) < 2:
+                    await self._sio.send_chat_msg("Missing args for add_tags.")
+                    return
+
+                await self._cmd_add_tags(args[0], args[1:])
             case "content":
-                if self._sio.data.is_user_moderator(username):
-                    await self._cmd_content_search(args)
+                if not self._sio.data.is_user_moderator(username):
+                    await self._sio.send_chat_msg("You don't have permission to do that.")
+
+                await self._cmd_content_search(args)
             case "current":
                 await self._cmd_current()
             case "random" | "random_word":
@@ -168,38 +188,49 @@ class AsyncContentProcessor:
                     word = False
 
                 await self._cmd_random(size, word)
-            case "remove_tags":
-                if self._sio.data.is_user_admin(username):
-                    if len(args) < 2:
-                        await self._sio.send_chat_msg("Missing args for remove_tags.")
-                        return
-
-                    channel = args[0]
-                    tags = args[1:]
-                    await self._db.remove_tags(channel, tags)
-                else:
+            case "remove_channel" | "remove_channels":
+                if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
 
-    async def _cmd_add_channel(self, channel_name: str) -> None:
-        channel_name = clean_yt_string(channel_name)
+                if not args:
+                    await self._sio.send_chat_msg("No channels provided.")
+                    return
 
-        cookies = {"CONSENT": "YES+1"}
-        candidate_urls = {
-            f"https://www.youtube.com/@{channel_name}": r'.*"browse_id","value":"(.*?)"',
-            f"https://www.youtube.com/c/{channel_name}": r'.*"browse_id","value":"(.*?)"',
-            f"https://www.youtube.com/channel/{channel_name}": r'.*"channelMetadataRenderer":{"title":"(.*?)"',
-        }
+                deleted = await self._db.remove_channels(args)
+                await self._sio.send_chat_msg(f"Deleted {deleted} channels from the DB.")
+            case "remove_tags":
+                if not self._sio.data.is_user_admin(username):
+                    await self._sio.send_chat_msg("You don't have permission to do that.")
 
-        for url, pattern in candidate_urls.items():
-            channel_id = get_data_from_pattern(url, pattern, cookies=cookies)
-            if channel_id:
-                break
-        else:
+                if len(args) < 2:
+                    await self._sio.send_chat_msg("Missing args for remove_tags.")
+                    return
+
+                channel = args[0]
+                tags = args[1:]
+                await self._db.remove_tags(channel, tags)
+
+    async def _cmd_add_channel(self, channel_name: str, tags: Optional[List] = None) -> None:
+        channel_id = get_channel_id_from_name(channel_name)
+
+        if not channel_id:
             await self._sio.send_chat_msg(f"Couldn't find '{channel_name}'")
             return
 
-        await self._sio.send_chat_msg(f"Adding '{channel_name}' to DB.")
-        await self._db.add_channel(channel_id, channel_name)
+        success = await self._db.add_channel(channel_id, channel_name, tags=tags)
+
+        if success:
+            await self._sio.send_chat_msg(f"Added '{channel_name}' to DB.")
+        else:
+            await self._sio.send_chat_msg(f"Failed to add '{channel_name}' to DB.")
+
+    async def _cmd_add_tags(self, channel_name: str, tags: List[str]) -> None:
+        channel_id = await self._db.get_channel_id(channel_name)
+        if not channel_id:
+            await self._sio.send_chat_msg(f"{channel_name} not in DB.")
+            return
+        await self._db.add_tags(channel_id, tags)
+        await self._sio.send_chat_msg(f"{tags} added to {channel_name}")
 
     async def _cmd_content_search(self, tags: List) -> None:
         if not tags:
