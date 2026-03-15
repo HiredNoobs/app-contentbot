@@ -23,7 +23,9 @@ class SIOData:
     _users: Dict[str, int] = field(default_factory=dict)
     _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
     _last_content_pull: Dict[str, datetime] = field(default_factory=dict)
+
     _logged_in: bool = False
+    _last_login: Optional[datetime] = None
 
     _channel_permissions: Dict[str, int] = field(default_factory=dict)
     _admin_permission_level = 3
@@ -244,3 +246,11 @@ class SIOData:
     def logged_in(self, value: bool) -> None:
         """Set the bot's login state."""
         self._logged_in = value
+
+    @property
+    def last_login(self) -> Optional[datetime]:
+        return self._last_login
+
+    @last_login.setter
+    def last_login(self, value: datetime) -> None:
+        self._last_login = value

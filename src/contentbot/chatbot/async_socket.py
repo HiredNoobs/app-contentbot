@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime, timedelta
 from textwrap import wrap
 from typing import Dict, Optional
 
@@ -72,8 +73,15 @@ class AsyncSocket:
 
     async def login(self) -> None:
         """Log in to the Cytube channel if not already authenticated."""
-        if not self.data.logged_in:
-            await self._client.emit("login", {"name": self._username, "pw": self._password})
+        if self.data.logged_in:
+            return
+
+        if self.data.last_login:
+            if self.data.last_login > datetime.now() - timedelta(seconds=60):
+                return
+
+        self.data.last_login = datetime.now()
+        await self._client.emit("login", {"name": self._username, "pw": self._password})
 
     async def emit(self, event: str, data: Optional[Dict] = None) -> None:
         """

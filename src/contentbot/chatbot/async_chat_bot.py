@@ -128,6 +128,12 @@ class AsyncChatBot:
         @self._sio._client.event
         async def mediaUpdate(data: Dict) -> None:
             logger.debug("mediaUpdate event captured: %s", data)
+            # It is possible to miss the channelOpts event and skip the login call.
+            # mediaUpdate is the only consistent event (so long as content is playing
+            # which it should be as the bot is technically connected - unless someone else
+            # is in the channel and pauses the content.)
+            if self._sio.data.last_login is not None:  # avoid connecting to early on initial connection
+                await self._sio.login()
             await self._content_processor.handle_media_update(data)
 
         @self._sio._client.event
