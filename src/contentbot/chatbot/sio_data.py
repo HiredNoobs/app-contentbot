@@ -38,6 +38,7 @@ class SIOData:
         This is typically called on disconnect to ensure that stale
         server-provided data does not persist across reconnections.
         """
+        self._logged_in = False
         self._users = {}
         self._channel_permissions = {}
 
