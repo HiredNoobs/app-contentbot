@@ -42,10 +42,10 @@ class SIOData:
 
     def reset_data(self) -> None:
         """
-        Reset user and permission data.
+        Reset user and permission state.
 
         This is typically called on disconnect to ensure that stale
-        server-provided data does not persist across reconnections.
+        server-provided state does not persist across reconnections.
         """
         self._users = {}
         self._logged_in = False
@@ -62,7 +62,12 @@ class SIOData:
 
     @user.setter
     def user(self, value: str) -> None:
-        """Set the bot's username."""
+        """
+        Set the bot's username.
+
+        Args:
+            value (str): The bot's username.
+        """
         self._user = value
 
     # ------------------------------------------------------------------
@@ -76,7 +81,12 @@ class SIOData:
 
     @current_media.setter
     def current_media(self, value: Dict) -> None:
-        """Set the currently playing media metadata."""
+        """
+        Set the currently playing media metadata.
+
+        Args:
+            value (Dict): Media metadata dictionary.
+        """
         self._current_media = value
 
     def update_current_time(self, value: float) -> None:
@@ -254,7 +264,12 @@ class SIOData:
 
     @logged_in.setter
     def logged_in(self, value: bool) -> None:
-        """Set the bot's login state."""
+        """
+        Set the bot's login state.
+
+        Args:
+            value (bool): Login state.
+        """
         self._logged_in = value
 
     @property
@@ -264,7 +279,12 @@ class SIOData:
 
     @last_login.setter
     def last_login(self, value: datetime) -> None:
-        """Set the timestamp of the most recent successful login."""
+        """
+        Set the timestamp of the most recent successful login.
+
+        Args:
+            value (datetime): Login timestamp.
+        """
         self._last_login = value
 
     # ------------------------------------------------------------------
@@ -277,15 +297,18 @@ class SIOData:
         return self._current_backoff
 
     def increase_backoff(self) -> None:
-        """Increment the current_backoff."""
+        """Increment the current_backoff value."""
         self._last_retry = datetime.now()
         self._current_backoff = min(self._current_backoff + self._backoff_factor, self._max_backoff)
         logger.debug("Current backoff increased to %s.", self._current_backoff)
 
     def decrease_backoff(self) -> None:
         """
-        Reduce the current_backoff by the backoff_factor if the last_retry wasn't within
-        the retry_cooloff_period.
+        Decrease the current_backoff value.
+
+        The backoff value is reduced by the configured backoff factor,
+        but only if enough time has passed since the last backoff adjustment.
+        The backoff will not drop below the base retry backoff value.
         """
         logger.debug("Attempting to decrease backoff...")
 
