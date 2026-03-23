@@ -4,6 +4,8 @@ import random
 import string
 from typing import Dict, Optional
 
+import requests
+
 from contentbot.common.utils.api_query import query_endpoint
 
 logger: logging.Logger = logging.getLogger("contentbot")
@@ -51,7 +53,11 @@ class RandomFinder:
 
         logger.info(f"Finding random with {rand_str}")
         url = f"https://www.youtube.com/results?search_query={rand_str}"
-        resp = await query_endpoint(url)
+
+        try:
+            resp = await query_endpoint(url)
+        except requests.exceptions.HTTPError:
+            return {}
 
         # Thankfully the video data is stored as json in script tags
         # We just have to pull the json out...

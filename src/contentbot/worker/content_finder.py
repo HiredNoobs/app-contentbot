@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 import requests
 from bs4 import BeautifulSoup as bs
@@ -14,7 +14,7 @@ logger: logging.Logger = logging.getLogger("contentbot")
 class ContentFinder:
     """Class for discovering new YouTube content."""
 
-    async def find_content(self, channel: Dict) -> list[dict]:
+    async def find_content(self, channel: Dict) -> List[dict]:
         """
         Retrieve newly published videos for a channel.
 
@@ -32,14 +32,19 @@ class ContentFinder:
                     "video_id": str
                 }
         """
-        content = []
+        content: List[Dict] = []
         channel_id = channel["channel_id"]
         name = channel["channel_name"]
         dt = datetime.fromisoformat(channel["last_update"])
         logger.info(f"Getting content for: {name}")
 
         channel_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-        resp = await query_endpoint(channel_url)
+
+        try:
+            resp = await query_endpoint(channel_url)
+        except requests.exceptions.HTTPError:
+            return content
+
         page = resp.text
         soup = bs(page, "lxml-xml")
 
