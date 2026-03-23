@@ -48,7 +48,7 @@ def clean_yt_string(channel_name_or_url: str) -> str:
     return channel_name_or_url
 
 
-def get_channel_id_from_name(channel_name: str) -> Optional[str]:
+async def get_channel_id_from_name(channel_name: str) -> Optional[str]:
     """
     Resolve a YouTube channel name or URL to its channel ID.
 
@@ -71,13 +71,13 @@ def get_channel_id_from_name(channel_name: str) -> Optional[str]:
     }
 
     for url, pattern in candidate_urls.items():
-        channel_id = get_data_from_pattern(url, pattern, cookies=cookies)
+        channel_id = await get_data_from_pattern(url, pattern, cookies=cookies)
         if channel_id:
             return channel_id
     return None
 
 
-def get_data_from_pattern(
+async def get_data_from_pattern(
     url: str, pattern: str, cookies: Optional[Dict] = None, script_tag_name: str = "ytInitialData"
 ) -> Optional[str]:
     """
@@ -98,7 +98,7 @@ def get_data_from_pattern(
         Optional[str]: The extracted value, or None if not found or on error.
     """
     try:
-        resp = query_endpoint(url, cookies=cookies)
+        resp = await query_endpoint(url, cookies=cookies)
         soup = bs(resp.text, "lxml")
         script_tag = soup.find("script", string=re.compile(script_tag_name))  # type: ignore
         if not script_tag:

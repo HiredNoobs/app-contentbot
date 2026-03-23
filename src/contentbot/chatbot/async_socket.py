@@ -53,7 +53,7 @@ class AsyncSocket:
             ConnectionError: If no secure server entry is found.
         """
         socket_conf = f"{self._url}/socketconfig/{self._channel_name}.json"
-        resp = query_endpoint(socket_conf)
+        resp = await query_endpoint(socket_conf)
         servers = resp.json()
 
         for server in servers["servers"]:

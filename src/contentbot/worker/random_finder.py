@@ -23,7 +23,7 @@ class RandomFinder:
         """
         self._dictonary_file = dictonary_file
 
-    def find_random(self, size: int, use_dict: bool) -> Dict[str, str]:
+    async def find_random(self, size: int, use_dict: bool) -> Dict[str, str]:
         """
         Generate a random YouTube search query and return a random video ID
         from the results.
@@ -51,7 +51,7 @@ class RandomFinder:
 
         logger.info(f"Finding random with {rand_str}")
         url = f"https://www.youtube.com/results?search_query={rand_str}"
-        resp = query_endpoint(url)
+        resp = await query_endpoint(url)
 
         # Thankfully the video data is stored as json in script tags
         # We just have to pull the json out...

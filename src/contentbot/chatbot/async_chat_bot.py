@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Dict
@@ -196,3 +197,4 @@ class AsyncChatBot:
         """
         async for msg in self._result_consumer.consume():
             await self._content_processor.handle_new_content(msg)
+            await asyncio.sleep(self._sio.data.current_backoff)

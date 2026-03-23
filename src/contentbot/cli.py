@@ -146,9 +146,9 @@ async def run_worker(cfg: Dict) -> None:
 
                 content = None
                 if "channel_id" in job.keys():
-                    content = content_finder.find_content(job)
+                    content = await content_finder.find_content(job)
                 elif "random_size" in job.keys():
-                    content = [random_finder.find_random(job["random_size"], job["random_word"])]
+                    content = [await random_finder.find_random(job["random_size"], job["random_word"])]
 
                 if not content:
                     await job_consumer.commit(msg)

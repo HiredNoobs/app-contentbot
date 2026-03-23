@@ -240,7 +240,7 @@ class AsyncRedisDB:
         url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
 
         try:
-            resp = query_endpoint(url)
+            resp = await query_endpoint(url)
             resp.raise_for_status()
         except Exception:
             logger.exception(f"Failed to fetch feed for {channel_id}")

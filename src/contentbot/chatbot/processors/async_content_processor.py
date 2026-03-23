@@ -169,6 +169,8 @@ class AsyncContentProcessor(BaseProcessor):
         try:
             await msg.ack()
             logger.debug("Acked RabbitMQ message for video %s", video_id)
+
+            self._sio.data.decrease_backoff()
         except Exception:
             logger.exception("Failed to ack RabbitMQ message for %s", video_id)
         finally:
@@ -189,8 +191,11 @@ class AsyncContentProcessor(BaseProcessor):
 
         try:
             logger.debug("Nacking RabbitMQ message for failed video %s", video_id)
-            if msg.body in ACCEPTABLE_ERRORS:
+            if data["msg"] in ACCEPTABLE_ERRORS:
                 await msg.nack(requeue=False)
+            elif data["msg"] == "You are adding videos too quickly":
+                self._sio.data.increase_backoff()
+                await msg.nack(requeue=True)
             else:
                 await msg.nack(requeue=True)
         except Exception:
@@ -292,7 +297,7 @@ class AsyncContentProcessor(BaseProcessor):
         if tags:
             tags = [tag for tag in tags if tag.isalpha()]
 
-        channel_id = get_channel_id_from_name(channel_name)
+        channel_id = await get_channel_id_from_name(channel_name)
 
         if not channel_id:
             await self._sio.send_chat_msg(f"Couldn't find '{channel_name}'")
@@ -359,7 +364,7 @@ class AsyncContentProcessor(BaseProcessor):
 
         video_id = current["id"]
         url = f"https://www.youtube.com/watch?v={video_id}"
-        desc = get_data_from_pattern(
+        desc = await get_data_from_pattern(
             url, r'.*"description":{"simpleText":"(.*?)"', script_tag_name="ytInitialPlayerResponse"
         )
         if desc:

@@ -1,4 +1,5 @@
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Optional
@@ -31,6 +32,13 @@ class SIOData:
     _admin_permission_level = 3
     _moderator_permission_level = 2
 
+    # These should probably come from the config file
+    _current_backoff: int = int(os.environ.get("BASE_RETRY_BACKOFF", 0))
+    _backoff_factor: int = int(os.environ.get("RETRY_BACKOFF_FACTOR", 2))
+    _max_backoff: int = int(os.environ.get("MAX_RETRY_BACKOFF", 20))
+    _retry_cooloff_period: int = int(os.environ.get("RETRY_COOLOFF_PERIOD", 10))
+    _last_retry: Optional[datetime] = None
+
     def reset_data(self) -> None:
         """
         Reset user and permission data.
@@ -38,8 +46,8 @@ class SIOData:
         This is typically called on disconnect to ensure that stale
         server-provided data does not persist across reconnections.
         """
-        self._logged_in = False
         self._users = {}
+        self._logged_in = False
         self._channel_permissions = {}
 
     # ------------------------------------------------------------------
@@ -255,3 +263,38 @@ class SIOData:
     @last_login.setter
     def last_login(self, value: datetime) -> None:
         self._last_login = value
+
+    # ------------------------------------------------------------------
+    # Backoff
+    # ------------------------------------------------------------------
+
+    @property
+    def current_backoff(self) -> int:
+        """Return the current backoff delay in seconds."""
+        return self._current_backoff
+
+    def increase_backoff(self) -> None:
+        """Increment the current_backoff."""
+        self._last_retry = datetime.now()
+        self._current_backoff = min(self._current_backoff + self._backoff_factor, self._max_backoff)
+        logger.debug(f"Current backoff increased to {self._current_backoff}")
+
+    def decrease_backoff(self) -> None:
+        """
+        Reduce the current_backoff by the backoff_factor if the last_retry wasn't within
+        the retry_cooloff_period.
+        """
+        logger.debug("Attempting to decrease backoff...")
+
+        if self._last_retry is not None:
+            elapsed = (datetime.now() - self._last_retry).total_seconds()
+            logger.debug(f"{elapsed} seconds since {self._last_retry=}")
+            if elapsed < self._retry_cooloff_period:
+                logger.debug(f"Last retry was too soon ({elapsed} seconds ago), not resetting backoff.")
+                return
+
+        self._current_backoff = max(
+            self._current_backoff - self._backoff_factor,
+            int(os.environ.get("BASE_RETRY_BACKOFF", 0)),
+        )
+        logger.debug(f"Backoff reduced to {self._current_backoff}")

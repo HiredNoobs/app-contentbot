@@ -14,7 +14,7 @@ logger: logging.Logger = logging.getLogger("contentbot")
 class ContentFinder:
     """Class for discovering new YouTube content."""
 
-    def find_content(self, channel: Dict) -> list[dict]:
+    async def find_content(self, channel: Dict) -> list[dict]:
         """
         Retrieve newly published videos for a channel.
 
@@ -39,7 +39,7 @@ class ContentFinder:
         logger.info(f"Getting content for: {name}")
 
         channel_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-        resp = query_endpoint(channel_url)
+        resp = await query_endpoint(channel_url)
         page = resp.text
         soup = bs(page, "lxml-xml")
 
