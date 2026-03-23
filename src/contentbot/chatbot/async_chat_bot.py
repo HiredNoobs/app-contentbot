@@ -196,5 +196,9 @@ class AsyncChatBot:
         to the content processor for handling.
         """
         async for msg in self._result_consumer.consume():
+            while not self._sio.data.logged_in:
+                logger.debug("Bot disconnected. Waiting before processing content...")
+                await asyncio.sleep(2)
+
             await self._content_processor.handle_new_content(msg)
             await asyncio.sleep(self._sio.data.current_backoff)
