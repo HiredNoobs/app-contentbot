@@ -33,11 +33,12 @@ class SIOData:
     _moderator_permission_level = 2
 
     # These should probably come from the config file
+    _base_retry_backoff: int = int(os.environ.get("BASE_RETRY_BACKOFF", 0))
     _current_backoff: int = int(os.environ.get("BASE_RETRY_BACKOFF", 0))
     _backoff_factor: int = int(os.environ.get("RETRY_BACKOFF_FACTOR", 2))
     _max_backoff: int = int(os.environ.get("MAX_RETRY_BACKOFF", 20))
     _retry_cooloff_period: int = int(os.environ.get("RETRY_COOLOFF_PERIOD", 10))
-    _last_retry: Optional[datetime] = None
+    _last_retry: datetime = datetime.now()
 
     def reset_data(self) -> None:
         """
@@ -258,10 +259,12 @@ class SIOData:
 
     @property
     def last_login(self) -> Optional[datetime]:
+        """Return the timestamp of the most recent successful login."""
         return self._last_login
 
     @last_login.setter
     def last_login(self, value: datetime) -> None:
+        """Set the timestamp of the most recent successful login."""
         self._last_login = value
 
     # ------------------------------------------------------------------
@@ -277,7 +280,7 @@ class SIOData:
         """Increment the current_backoff."""
         self._last_retry = datetime.now()
         self._current_backoff = min(self._current_backoff + self._backoff_factor, self._max_backoff)
-        logger.debug(f"Current backoff increased to {self._current_backoff}")
+        logger.debug("Current backoff increased to %s.", self._current_backoff)
 
     def decrease_backoff(self) -> None:
         """
@@ -286,15 +289,12 @@ class SIOData:
         """
         logger.debug("Attempting to decrease backoff...")
 
-        if self._last_retry is not None:
-            elapsed = (datetime.now() - self._last_retry).total_seconds()
-            logger.debug(f"{elapsed} seconds since {self._last_retry=}")
-            if elapsed < self._retry_cooloff_period:
-                logger.debug(f"Last retry was too soon ({elapsed} seconds ago), not resetting backoff.")
-                return
+        elapsed = (datetime.now() - self._last_retry).total_seconds()
+        logger.debug("%s seconds since last retry (%s)", elapsed, self._last_retry)
+        if elapsed < self._retry_cooloff_period:
+            logger.debug("Last retry was too soon (%s seconds ago), not resetting backoff.", elapsed)
+            return
 
-        self._current_backoff = max(
-            self._current_backoff - self._backoff_factor,
-            int(os.environ.get("BASE_RETRY_BACKOFF", 0)),
-        )
-        logger.debug(f"Backoff reduced to {self._current_backoff}")
+        self._current_backoff = max(self._current_backoff - self._backoff_factor, self._base_retry_backoff)
+        self._last_retry = datetime.now()
+        logger.debug("Backoff reduced to %s", self._current_backoff)
