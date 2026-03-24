@@ -145,9 +145,8 @@ class AsyncEventProcessor(BaseProcessor):
     # Command handlers
     # -----------------------------------------------------
 
-    # The unused arg is "username".
-    # Really just here for consistency with the other processor classes.
-    async def _handle_command(self, _: str, command: str, args: List[str]) -> None:
+    # username and args (set to _)
+    async def _handle_command(self, _: str, command: str, __: List[str]) -> None:
         """
         Route a parsed chat command to the appropriate handler.
 
@@ -158,25 +157,13 @@ class AsyncEventProcessor(BaseProcessor):
         """
         match command:
             case "help":
-                await self._cmd_help(args)
+                await self._cmd_help()
 
-    async def _cmd_help(self, contexts: List[str]) -> None:
-        """
-        Display help information for one or more command groups.
-
-        Args:
-            contexts (List[str]): Command groups to display help for.
-        """
-        if not contexts:
-            contexts = ["GENERAL", "CONTENT", "BLACKJACK"]
-
-        for context in contexts:
-            try:
-                commands = Commands.get_group(context)
-            except ValueError:
-                await self._sio.send_chat_msg(f"{context} is not a valid command set.")
-                continue
-
-            await self._sio.send_chat_msg(f"{context} commands:")
-            for cmd, desc in commands.items():
-                await self._sio.send_chat_msg(f"{Commands.COMMAND_SYMBOL.value}{cmd} — {desc}")
+    # It's too awkward to send the help info in chat due to
+    # the chat limits, instead a link to the readme is sent.
+    async def _cmd_help(self) -> None:
+        """Display help information link."""
+        symbol = Commands.COMMAND_SYMBOL.value
+        await self._sio.send_chat_msg(
+            f"Prefix commands with: ``{symbol}``. Commands: https://github.com/HiredNoobs/app-contentbot/blob/master/README.md#commands"
+        )
