@@ -95,26 +95,34 @@ rabbitmq_pass: password123
 
 #### Example docker compose file
 
-TODO: Finish this example
-
-Note: I don't use this compose file so it may or may not work...
+Note: This compose file is untested so it probably won't just work but it should help you get started.
 
 ```yaml
 services:
   chatbot:
     image: hirednoobs/contentbot:latest
-      environment:
-        CONFIG_PATH: /etc/contentbot/contentbot.conf
-        SECRETS_PATH: /etc/contentbot/contentbot_secrets.conf
+    environment:
+      CONFIG_PATH: /etc/contentbot/contentbot.conf
+      SECRETS_PATH: /etc/contentbot/contentbot_secrets.conf
+      RUNNING_ENVIRONMENT: DOCKER
+      LOG_LEVEL: INFO
+    volumes:
+      - ./configs:/etc/contentbot
+    command: chatbot
   worker:
     image: hirednoobs/contentbot:latest
-      environment:
-        CONFIG_PATH: /etc/contentbot/contentbot.conf
-        SECRETS_PATH: /etc/contentbot/contentbot_secrets.conf
+    environment:
+      CONFIG_PATH: /etc/contentbot/contentbot.conf
+      SECRETS_PATH: /etc/contentbot/contentbot_secrets.conf
+      RUNNING_ENVIRONMENT: DOCKER
+      LOG_LEVEL: INFO
+    volumes:
+      - ./configs:/etc/contentbot
+    command: worker
   redis:
-    ...
+    image: redis:latest
   rabbitmq:
-    ...
+    image: rabbitmq:latest
 ```
 
 ## Commands
