@@ -53,12 +53,15 @@ def load_config() -> Dict:
 # -----------------------------------------------------
 
 
-async def run_chatbot(cfg: Dict) -> None:
+async def run_chatbot(cfg: Dict) -> int:
     """
     Initialise and run the Cytube chatbot.
 
     Args:
         cfg (Dict): Full configuration dictionary.
+
+    Returns:
+        str: Status code to exit with.
     """
     siodata = SIOData()
     siodata.user = cfg["cytube_user"]
@@ -98,19 +101,26 @@ async def run_chatbot(cfg: Dict) -> None:
             if not task.done():
                 task.cancel()
 
-        await asyncio.gather(*task, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        return 1
     finally:
         await job_producer.stop()
         await result_consumer.stop()
         await db.close()
 
+    return 0
 
-async def run_worker(cfg: Dict) -> None:
+
+async def run_worker(cfg: Dict) -> int:
     """
     Run the background worker responsible for content discovery.
 
     Args:
         cfg (Dict): Full configuration dictionary.
+
+    Returns:
+        str: Status code to exit with.
     """
     db = AsyncRedisDB(
         cfg["db_host"],
@@ -158,14 +168,17 @@ async def run_worker(cfg: Dict) -> None:
                     await result_producer.send(c)
 
                 await job_consumer.commit(msg)
+            # TODO: This should catch specific exceptions,
+            # unhandled should act similar to run_chatbot.
             except Exception as err:
                 logger.exception("Unhandled exception: %s", err)
                 await msg.nack(requeue=False)
-
     finally:
         await job_consumer.stop()
         await result_producer.stop()
         await db.close()
+
+    return 0
 
 
 # -----------------------------------------------------
@@ -182,11 +195,13 @@ def cli() -> None:
 def chatbot() -> None:
     """Launch the Cytube chatbot."""
     cfg = load_config()
-    asyncio.run(run_chatbot(cfg))
+    exit_code = asyncio.run(run_chatbot(cfg))
+    raise SystemExit(exit_code)
 
 
 @cli.command()
 def worker() -> None:
     """Launch the background worker responsible for content discovery."""
     cfg = load_config()
-    asyncio.run(run_worker(cfg))
+    exit_code = asyncio.run(run_worker(cfg))
+    raise SystemExit(exit_code)
