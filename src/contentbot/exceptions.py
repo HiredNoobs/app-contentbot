@@ -6,6 +6,10 @@ class AuthenticationError(Exception):
     pass
 
 
+class RemovedFromChannelError(Exception):
+    pass
+
+
 class QueueError(Exception):
     pass
 

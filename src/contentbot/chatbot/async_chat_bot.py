@@ -12,6 +12,7 @@ from contentbot.chatbot.processors.async_blackjack_processor import (
 from contentbot.chatbot.processors.async_content_processor import AsyncContentProcessor
 from contentbot.chatbot.processors.async_event_processor import AsyncEventProcessor
 from contentbot.common.queue.rabbitmq_consumer import AsyncRabbitMQConsumer
+from contentbot.exceptions import RemovedFromChannelError
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
@@ -96,6 +97,11 @@ class AsyncChatBot:
         async def channelOpts(data: Dict) -> None:
             logger.debug("channelOpts event captured: %s", data)
             await self._event_processor.handle_channel_opts()
+
+        @self._sio._client.event
+        async def kick(data: Dict) -> None:
+            logger.info("Bot was kicked due to %s", data["reason"])
+            raise RemovedFromChannelError(f"Bot was kicked due to {data['reason']}")
 
         @self._sio._client.event
         async def disconnect() -> None:
