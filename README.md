@@ -106,6 +106,11 @@ services:
       environment:
         CONFIG_PATH: /etc/contentbot/contentbot.conf
         SECRETS_PATH: /etc/contentbot/contentbot_secrets.conf
+  worker:
+    image: hirednoobs/contentbot:latest
+      environment:
+        CONFIG_PATH: /etc/contentbot/contentbot.conf
+        SECRETS_PATH: /etc/contentbot/contentbot_secrets.conf
   redis:
     ...
   rabbitmq:
@@ -127,8 +132,6 @@ services:
 ``add_tags`` - Add tags to an existing channel. Usage: ``add_tags CHANNEL_NAME TAG_1 ... TAG_N``.
 
 ``content`` - Finds new content from all channels or tagged channels. Usage: ``content`` or ``content TAG``.
-
-``current`` - Gets the description of the current video.
 
 ``random`` - Get a video based on a search of a random string. Usage: `random` or `random 4` to set the search string to 4 characters.
 

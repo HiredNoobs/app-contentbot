@@ -40,7 +40,7 @@ class AsyncSocket:
         self._client = socketio.AsyncClient(engineio_logger=logger)
         self.data = siodata
 
-        self._message_limit = int(os.getenv("CYTUBE_MSG_LIMIT", "80"))
+        self._message_limit = int(os.getenv("CYTUBE_MSG_LIMIT", "320"))
 
     async def _get_socket_url(self) -> str:
         """

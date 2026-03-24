@@ -165,5 +165,5 @@ class AsyncEventProcessor(BaseProcessor):
         """Display help information link."""
         symbol = Commands.COMMAND_SYMBOL.value
         await self._sio.send_chat_msg(
-            f"Prefix commands with: ``{symbol}``. Commands: https://github.com/HiredNoobs/app-contentbot/blob/master/README.md#commands"
+            f"Prefix commands with: `{symbol}`. Commands: https://github.com/HiredNoobs/app-contentbot/blob/master/README.md#commands"
         )

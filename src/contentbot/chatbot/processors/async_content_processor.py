@@ -250,8 +250,6 @@ class AsyncContentProcessor(BaseProcessor):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
 
                 await self._cmd_content_search(args)
-            case "current":
-                await self._cmd_current()
             case "random" | "random_word":
                 try:
                     size = int(args[0]) if args else 3
@@ -355,24 +353,6 @@ class AsyncContentProcessor(BaseProcessor):
                 await self._job_queue.send(channel)
 
             self._sio.data.update_last_content_pull(now, tag=tag)
-
-    async def _cmd_current(self) -> None:
-        """Display the description of the currently playing media item."""
-        current = self._sio.data.current_media
-        if not current:
-            return None
-
-        video_id = current["id"]
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        desc = await get_data_from_pattern(
-            url, r'.*"description":{"simpleText":"(.*?)"', script_tag_name="ytInitialPlayerResponse"
-        )
-        if desc:
-            desc = desc.replace("\\n", " ")
-        else:
-            desc = "Description not available."
-
-        await self._sio.send_chat_msg(desc)
 
     async def _cmd_random(self, size: int, word: bool) -> None:
         """

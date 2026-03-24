@@ -12,7 +12,6 @@ class Commands(Enum):
         "add_channels",
         "add_tags",
         "content",
-        "current",
         "random",
         "random_word",
         "remove_channel",
