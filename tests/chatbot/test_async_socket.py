@@ -23,11 +23,11 @@ class TestAsyncSocket:
         )
 
     # ------------------------------------------------------------------
-    # _init_socket
+    # _get_socket_url
     # ------------------------------------------------------------------
 
     @pytest.mark.asyncio
-    async def test_init_socket_returns_secure_url(self, socket):
+    async def test_get_socket_url_returns_secure_url(self, socket):
         fake_response = MagicMock()
         fake_response.json.return_value = {
             "servers": [
@@ -37,11 +37,11 @@ class TestAsyncSocket:
         }
 
         with patch("contentbot.chatbot.async_socket.query_endpoint", return_value=fake_response):
-            url = await socket._init_socket()
+            url = await socket._get_socket_url()
             assert url == "wss://secure.example"
 
     @pytest.mark.asyncio
-    async def test_init_socket_raises_if_no_secure(self, socket):
+    async def test_get_socket_url_raises_if_no_secure(self, socket):
         fake_response = MagicMock()
         fake_response.json.return_value = {
             "servers": [
@@ -52,7 +52,7 @@ class TestAsyncSocket:
 
         with patch("contentbot.chatbot.async_socket.query_endpoint", return_value=fake_response):
             with pytest.raises(ConnectionError):
-                await socket._init_socket()
+                await socket._get_socket_url()
 
     # ------------------------------------------------------------------
     # connect

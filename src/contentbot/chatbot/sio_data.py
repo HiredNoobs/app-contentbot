@@ -75,7 +75,7 @@ class SIOData:
     # ------------------------------------------------------------------
 
     @property
-    def current_media(self) -> dict | None:
+    def current_media(self) -> Optional[dict]:
         """Return the currently playing media metadata."""
         return self._current_media
 
@@ -208,7 +208,7 @@ class SIOData:
     # Content
     # ------------------------------------------------------------------
 
-    def get_last_content_pull(self, tag: Optional[str]) -> Optional[datetime]:
+    def get_last_content_pull(self, tag: Optional[str] = None) -> Optional[datetime]:
         """
         Get the timestamp of the last content pull for a given tag.
 
@@ -218,7 +218,7 @@ class SIOData:
         Returns:
             Optional[datetime]: Timestamp of last pull, or None.
         """
-        if not tag:
+        if tag is None:
             tag = "all"
         return self._last_content_pull.get(tag)
 
@@ -230,7 +230,7 @@ class SIOData:
             new_dt (datetime): Timestamp to record.
             tag (Optional[str]): Content tag, or None for global pulls.
         """
-        if not tag:
+        if tag is None:
             tag = "all"
         self._last_content_pull[tag] = new_dt
 

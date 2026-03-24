@@ -191,16 +191,16 @@ class TestSIOData:
         data = SIOData()
         now = datetime.now()
 
-        data.update_last_content_pull("music", now)
-        assert data.get_last_content_pull("music") == now
+        data.update_last_content_pull(now, tag="music")
+        assert data.get_last_content_pull(tag="music") == now
 
     def test_last_content_pull_default_tag(self):
         data = SIOData()
         now = datetime.now()
 
-        data.update_last_content_pull(None, now)
-        assert data.get_last_content_pull(None) == now
-        assert data.get_last_content_pull("all") == now
+        data.update_last_content_pull(now)
+        assert data.get_last_content_pull() == now
+        assert data.get_last_content_pull(tag="all") == now
 
     # ------------------------------------------------------------------
     # Reset
