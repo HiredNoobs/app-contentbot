@@ -115,6 +115,17 @@ class AsyncEventProcessor(BaseProcessor):
         """
         self._sio.data.channel_permissions = data
 
+    def handle_set_user_rank(self, data: Dict) -> None:
+        """
+        Handle a user rank update from the server.
+
+        Args:
+            data (Dict): The user's name and rank.
+        """
+        user = data["name"]
+        rank = data["rank"]
+        self._sio.data.add_or_update_user(user, rank)
+
     async def handle_user_list(self, data: Dict) -> None:
         """
         Handle a full user list update from the server.

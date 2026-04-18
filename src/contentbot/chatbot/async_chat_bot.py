@@ -179,6 +179,11 @@ class AsyncChatBot:
             self._event_processor.handle_set_permissions(data)
 
         @self._sio._client.event
+        async def setUserRank(data: Dict) -> None:
+            logger.debug("SetUserRank event captured: %s", data)
+            self._event_processor.handle_set_user_rank(data)
+
+        @self._sio._client.event
         async def queue(data: Dict) -> None:
             logger.debug("queue event captured: %s", data)
             await self._content_processor.handle_successful_queue(data)
