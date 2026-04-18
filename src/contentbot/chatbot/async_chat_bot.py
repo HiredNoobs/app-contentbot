@@ -75,12 +75,15 @@ class AsyncChatBot:
         chat_ts = datetime.fromtimestamp(data["time"] / 1000)
 
         if not username or not msg or not chat_ts:
+            logger.debug("Chat message (%s) missing required fields.", msg)
             return False
 
         if chat_ts < datetime.now() - timedelta(seconds=10):
+            logger.debug("Chat message (%s) is too old.", msg)
             return False
 
         if username == self._sio.data.user:
+            logger.debug("Chat message (%s) is from the bot.", msg)
             return False
 
         return True
@@ -119,15 +122,19 @@ class AsyncChatBot:
             command = msg_parts[0].casefold()
 
             if not command.startswith(Commands.COMMAND_SYMBOL.value):
+                logger.debug("Chat message (%s) does not start with command symbol.", msg)
                 return
 
             command = command[1:]
 
             if command in Commands.GENERAL_COMMANDS.value:
+                logger.debug("Delegating to event processor.")
                 await self._event_processor.handle_chat_message(data)
             elif command in Commands.CONTENT_COMMANDS.value:
+                logger.debug("Delegating to content processor.")
                 await self._content_processor.handle_chat_message(data)
             elif command in Commands.BLACKJACK_COMMANDS.value:
+                logger.debug("Delegating to blackjack processor.")
                 await self._blackjack_processor.handle_chat_message(data)
             else:
                 await self._sio.send_chat_msg(f"'{command}' is not a valid command.")
