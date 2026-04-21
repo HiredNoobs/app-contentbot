@@ -284,7 +284,7 @@ class AsyncRedisDB:
             except json.JSONDecodeError:
                 continue
 
-            if data.get("name") in channel_names:
+            if data.get("channel_name") in channel_names:
                 await self._redis.delete(key)
                 deleted_count += 1
 
