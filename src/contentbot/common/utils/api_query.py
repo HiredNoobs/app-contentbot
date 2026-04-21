@@ -7,9 +7,9 @@ import requests
 async def query_endpoint(
     url: str,
     cookies: Optional[Dict] = None,
-    max_retries: int = 10,
+    max_retries: int = 5,
     backoff_factor: int = 2,
-    max_backoff: int = 30,
+    max_backoff: int = 10,
 ) -> requests.Response:
     """
     Perform a GET request with retry and exponential backoff.
