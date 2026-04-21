@@ -345,7 +345,7 @@ class AsyncContentProcessor(BaseProcessor):
             now = datetime.now()
             last_pull = self._sio.data.get_last_content_pull(tag)
             if last_pull:
-                if last_pull < now - timedelta(minutes=5):
+                if last_pull > now - timedelta(minutes=5):
                     continue
 
             channels = await self._db.get_channels(tag=tag)
