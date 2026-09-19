@@ -1,8 +1,9 @@
+import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
 from textwrap import wrap
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import socketio
 
@@ -41,6 +42,7 @@ class AsyncSocket:
         self.data = siodata
 
         self._message_limit = int(os.getenv("CYTUBE_MSG_LIMIT", "320"))
+        self._playlist_future: Optional[asyncio.Future[Optional[List[Dict]]]] = None
 
     async def _get_socket_url(self) -> str:
         """
@@ -119,6 +121,31 @@ class AsyncSocket:
             "queue",
             {"id": id, "type": "yt", "pos": "end", "temp": True},
         )
+
+    def handle_playlist_response(self, data: List[Dict]) -> None:
+        """
+        Handle a playlist snapshot received from Cytube.
+
+        Args:
+            data (List[Dict]): Playlist entries returned by Cytube.
+        """
+        if self._playlist_future and not self._playlist_future.done():
+            self._playlist_future.set_result(data)
+
+    async def request_playlist(self, timeout: float = 5.0) -> Optional[List[Dict]]:
+        """Request the current Cytube playlist and await the response."""
+        self._playlist_future = asyncio.get_running_loop().create_future()
+        await self._client.emit("requestPlaylist")
+
+        try:
+            return await asyncio.wait_for(self._playlist_future, timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("Timed out waiting for Cytube playlist response.")
+            if self._playlist_future and not self._playlist_future.done():
+                self._playlist_future.cancel()
+            return None
+        finally:
+            self._playlist_future = None
 
     async def become_leader(self) -> None:
         """

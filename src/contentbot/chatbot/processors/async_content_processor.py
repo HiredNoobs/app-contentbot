@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -147,6 +148,8 @@ class AsyncContentProcessor(BaseProcessor):
 
         try:
             await self._sio.add_video_to_queue(video_id)
+            if dt:
+                self._sio.data.set_video_publish_time(video_id, datetime.fromisoformat(dt))
             if channel_id and dt:
                 await self._db.update_datetime(channel_id, dt)
         except Exception:
@@ -279,6 +282,12 @@ class AsyncContentProcessor(BaseProcessor):
                 channel = args[0]
                 tags = args[1:]
                 await self._db.remove_tags(channel, tags)
+            case "sort_queue":
+                if not self._sio.data.is_user_moderator(username):
+                    await self._sio.send_chat_msg("You don't have permission to do that.")
+                    return
+
+                await self._cmd_sort_queue()
 
     async def _cmd_add_channel(self, channel_name: str, tags: Optional[List[str]] = None) -> None:
         """
@@ -376,3 +385,54 @@ class AsyncContentProcessor(BaseProcessor):
         """
         d = {"random_size": size, "random_word": word}
         await self._job_queue.send(d)
+
+    async def _cmd_sort_queue(self) -> None:
+        """
+        Reorder temporary queue items behind the permanent queue by upload time.
+
+        Uses the stored publish timestamps to sort all temporary videos and move
+        them after the final permanent item without assuming a fixed queue index.
+        """
+        playlist = await self._sio.request_playlist()
+        if playlist is None:
+            await self._sio.send_chat_msg("Queue is empty or could not be retrieved.")
+            return
+
+        temp_items = [item for item in playlist if item.get("temp")]
+        if not temp_items:
+            await self._sio.send_chat_msg("No temporary videos found.")
+            return
+
+        def publish_time_for(item: Dict) -> datetime:
+            media = item.get("media") or {}
+            video_id = media.get("id")
+            if video_id is None:
+                return datetime.min
+            known_dt = self._sio.data.get_video_publish_time(video_id)
+            if known_dt is not None:
+                return known_dt
+            return datetime.min
+
+        ordered_temp_items = sorted(
+            temp_items,
+            key=lambda item: (publish_time_for(item), item.get("uid", 0)),
+        )
+
+        # Get the UID for the final permanent video's UID
+        anchor_uid = None
+        for queue_item in reversed(playlist):
+            if not queue_item.get("temp"):
+                anchor_uid = queue_item.get("uid")
+                break
+
+        current_anchor = "prepend" if anchor_uid is None else anchor_uid
+
+        for item in ordered_temp_items:
+            await self._sio.emit(
+                "moveMedia",
+                {"from": item.get("uid"), "after": current_anchor},
+            )
+            current_anchor = item.get("uid")
+            await asyncio.sleep(0.05)
+
+        await self._sio.send_chat_msg("Queue sorted.")

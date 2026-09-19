@@ -152,6 +152,15 @@ class AsyncEventProcessor(BaseProcessor):
         if self._sio.data.only_remaining_user():
             await self._sio.become_leader()
 
+    async def handle_playlist_response(self, data: List[Dict]) -> None:
+        """
+        Handle a playlist snapshot received from the server.
+
+        Args:
+            data (List[Dict]): Playlist entries returned by Cytube.
+        """
+        self._sio.handle_playlist_response(data)
+
     # -----------------------------------------------------
     # Command handlers
     # -----------------------------------------------------

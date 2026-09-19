@@ -151,6 +151,8 @@ services:
 
 ``remove_tags`` - Remove tags from an existing channel. Usage ``remove_tags CHANNEL_NAME TAG_1 ... TAG_N``.
 
+``sort_queue`` - Sort the temporary videos after the permanent videos based on original publish date.
+
 ### Blackjack commands
 
 ``bet`` - Place your wager before the round begins. Usage: ``bet AMOUNT``.

@@ -17,6 +17,7 @@ class Commands(Enum):
         "remove_channel",
         "remove_channels",
         "remove_tags",
+        "sort_queue",
     ]
 
     BLACKJACK_COMMANDS = [

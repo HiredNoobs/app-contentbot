@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Dict, List
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.commands import Commands
@@ -202,6 +202,11 @@ class AsyncChatBot:
         async def userlist(data: Dict) -> None:
             logger.debug("userlist event captured: %s", data)
             await self._event_processor.handle_user_list(data)
+
+        @self._sio._client.event
+        async def playlist(data: List[Dict]) -> None:
+            logger.debug("playlist event captured: %s", data)
+            await self._event_processor.handle_playlist_response(data)
 
     async def run(self):
         """Start the bot by connecting to Socket.IO and waiting indefinitely."""
