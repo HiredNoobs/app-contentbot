@@ -85,6 +85,19 @@ class AsyncRedisDB:
         """
         return f"{video_id}@youtube.video.published"
 
+    @staticmethod
+    def _make_random_video_key(video_id: str) -> str:
+        """
+        Construct the Redis key used to flag a video as found by the random commands.
+
+        Args:
+            video_id (str): YouTube video ID.
+
+        Returns:
+            str: Redis key for the random video flag.
+        """
+        return f"{video_id}@youtube.video.random"
+
     # -----------------------------------------------------
     # General Redis methods
     # -----------------------------------------------------
@@ -373,3 +386,30 @@ class AsyncRedisDB:
             await self._redis.set(key, published, ex=VIDEO_PUBLISH_TIME_TTL)
         except Exception:
             logger.exception("Failed to save key %s.", key)
+
+    async def mark_random_video(self, video_id: str) -> None:
+        """
+        Flag a video as found by the random commands.
+
+        The key expires so the flag doesn't outlive the video's time in the queue.
+
+        Args:
+            video_id (str): YouTube video ID.
+        """
+        key = self._make_random_video_key(video_id)
+        try:
+            await self._redis.set(key, 1, ex=VIDEO_PUBLISH_TIME_TTL)
+        except Exception:
+            logger.exception("Failed to save key %s.", key)
+
+    async def is_random_video(self, video_id: str) -> bool:
+        """
+        Check whether a video was found by the random commands.
+
+        Args:
+            video_id (str): YouTube video ID.
+
+        Returns:
+            bool: True if the video is flagged as random, otherwise False.
+        """
+        return await self._redis.exists(self._make_random_video_key(video_id)) > 0

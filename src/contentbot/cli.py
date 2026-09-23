@@ -162,6 +162,8 @@ async def run_worker(cfg: Dict) -> int:
                 elif job_type == "random" or "random_size" in job:
                     random_content = await random_finder.find_random(job["random_size"], job["random_word"])
                     content = [random_content] if random_content else None
+                    if random_content:
+                        await db.mark_random_video(random_content["video_id"])
 
                 if not content:
                     await job_consumer.commit(msg)

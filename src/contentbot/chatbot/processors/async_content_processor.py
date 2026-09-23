@@ -462,4 +462,10 @@ class AsyncContentProcessor(BaseProcessor):
 
         unknown = result.get("unknown", 0)
         if unknown:
-            await self._sio.send_chat_msg(f"Couldn't find publish dates for {unknown} videos, moved to the end.")
+            await self._sio.send_chat_msg(f"Couldn't find publish dates for {unknown} videos, left them in place.")
+
+        unknown_random = result.get("unknown_random", 0)
+        if unknown_random:
+            await self._sio.send_chat_msg(
+                f"Couldn't find publish dates for {unknown_random} random videos, moved them to the end."
+            )

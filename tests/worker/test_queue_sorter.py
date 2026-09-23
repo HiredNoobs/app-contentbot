@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 
 import pytest
@@ -19,14 +18,20 @@ def apply_moves(order, moves):
 
 
 class FakeResponse:
-    def __init__(self, text: str):
+    def __init__(self, text: str = "", json_data=None):
         self.text = text
-        self.url = "https://www.youtube.com/watch?v=abc123"
+        self._json_data = json_data
+
+    def json(self):
+        if self._json_data is None:
+            raise ValueError("No JSON")
+        return self._json_data
 
 
 class FakeDB:
-    def __init__(self, times=None):
+    def __init__(self, times=None, random_videos=None):
         self.times = dict(times or {})
+        self.random_videos = set(random_videos or [])
 
     async def get_video_publish_time(self, video_id):
         return self.times.get(video_id)
@@ -34,9 +39,21 @@ class FakeDB:
     async def set_video_publish_time(self, video_id, published):
         self.times[video_id] = published
 
+    async def is_random_video(self, video_id):
+        return video_id in self.random_videos
+
 
 def item(uid, temp=True, media_id=None, media_type="yt"):
     return {"uid": uid, "temp": temp, "media_id": media_id or f"vid{uid}", "media_type": media_type}
+
+
+def no_fetch(monkeypatch):
+    """Make every uncached lookup fail, so only cached times are known."""
+
+    async def fake_fetch(self, video_id):
+        return None
+
+    monkeypatch.setattr(QueueSorter, "_fetch_publish_time", fake_fetch)
 
 
 # ------------------------------------------------------------------
@@ -79,7 +96,7 @@ def test_plan_moves_minimum_count():
 
 
 # ------------------------------------------------------------------
-# QueueSorter
+# sort_queue
 # ------------------------------------------------------------------
 
 
@@ -97,6 +114,7 @@ async def test_sort_queue_orders_temp_after_permanent_by_publish_time():
 
     assert result["type"] == "sort_queue"
     assert result["unknown"] == 0
+    assert result["unknown_random"] == 0
     assert apply_moves([2, 1, 3, 4], result["moves"]) == [1, 3, 4, 2]
 
 
@@ -108,21 +126,55 @@ async def test_sort_queue_compares_naive_and_aware_times():
     assert apply_moves([1, 2], result["moves"]) == [2, 1]
 
 
-async def test_sort_queue_places_unknown_last(monkeypatch):
-    async def fake_fetch(self, video_id):
-        return None
-
-    monkeypatch.setattr(QueueSorter, "_fetch_publish_time", fake_fetch)
-    db = FakeDB({"vid2": "2024-01-01T00:00:00+00:00", "vid4": "2023-01-01T00:00:00+00:00"})
-    playlist = [item(1), item(2), item(3, media_type="vi"), item(4)]
+async def test_sort_queue_leaves_undated_in_place(monkeypatch):
+    no_fetch(monkeypatch)
+    db = FakeDB(
+        {
+            "vid1": "2024-03-01T00:00:00+00:00",
+            "vid3": "2024-01-01T00:00:00+00:00",
+            "vid5": "2024-02-01T00:00:00+00:00",
+        }
+    )
+    # 2 is undated and 4 isn't a YouTube video; both keep their positions.
+    playlist = [item(1), item(2), item(3), item(4, media_type="vi"), item(5)]
 
     result = await QueueSorter(db).sort_queue(playlist)
 
     assert result["unknown"] == 2
-    assert apply_moves([1, 2, 3, 4], result["moves"]) == [4, 2, 1, 3]
+    assert result["unknown_random"] == 0
+    assert apply_moves([1, 2, 3, 4, 5], result["moves"]) == [3, 2, 5, 4, 1]
 
 
-async def test_sort_queue_fetches_and_caches_missing_times(monkeypatch):
+async def test_sort_queue_moves_undated_random_to_end(monkeypatch):
+    no_fetch(monkeypatch)
+    db = FakeDB(
+        {"vid2": "2024-02-01T00:00:00+00:00", "vid4": "2024-01-01T00:00:00+00:00"},
+        random_videos={"vid1", "vid3"},
+    )
+    # 1 and 3 are undated random videos; 5 is undated but not random.
+    playlist = [item(1), item(2), item(3), item(4), item(5)]
+
+    result = await QueueSorter(db).sort_queue(playlist)
+
+    assert result["unknown"] == 1
+    assert result["unknown_random"] == 2
+    assert apply_moves([1, 2, 3, 4, 5], result["moves"]) == [4, 2, 5, 1, 3]
+
+
+async def test_sort_queue_sorts_dated_random(monkeypatch):
+    no_fetch(monkeypatch)
+    db = FakeDB(
+        {"vid1": "2024-03-01T00:00:00+00:00", "vid2": "2024-01-01T00:00:00+00:00"},
+        random_videos={"vid2"},
+    )
+
+    result = await QueueSorter(db).sort_queue([item(1), item(2)])
+
+    assert result["unknown_random"] == 0
+    assert apply_moves([1, 2], result["moves"]) == [2, 1]
+
+
+async def test_sort_queue_only_fetches_uncached_times(monkeypatch):
     fetched = []
 
     async def fake_fetch(self, video_id):
@@ -135,64 +187,110 @@ async def test_sort_queue_fetches_and_caches_missing_times(monkeypatch):
     result = await QueueSorter(db).sort_queue([item(1), item(2)])
 
     assert fetched == ["vid2"]
-    assert db.times["vid2"] == "2020-01-01T00:00:00+00:00"
     assert apply_moves([1, 2], result["moves"]) == [2, 1]
 
 
 # ------------------------------------------------------------------
-# _fetch_publish_time
+# _fetch_publish_time (oEmbed -> channel page -> RSS feed)
 # ------------------------------------------------------------------
 
+CHANNEL_ID = "UCEikOr4uF0x7hbITxBw8cWw"
 
-def watch_page(microformat):
-    """Build a minimal watch page containing a ytInitialPlayerResponse script."""
-    player_response = json.dumps({"microformat": {"playerMicroformatRenderer": microformat}})
-    return (
-        "<html><script>var ytInitialPlayerResponse = null;</script>"
-        f"<script>var ytInitialPlayerResponse = {player_response};var meta = document.createElement('meta');</script>"
-        "</html>"
-    )
+CHANNEL_PAGE = f'<html><link rel="canonical" href="https://www.youtube.com/channel/{CHANNEL_ID}"></html>'
+
+FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns="http://www.w3.org/2005/Atom">
+ <published>2010-01-01T00:00:00+00:00</published>
+ <entry>
+  <yt:videoId>vidA</yt:videoId>
+  <published>2026-09-18T15:00:00+00:00</published>
+ </entry>
+ <entry>
+  <yt:videoId>vidB</yt:videoId>
+  <published>2026-09-10T08:30:00+00:00</published>
+ </entry>
+</feed>"""
 
 
-def patch_page(monkeypatch, page):
-    async def fake_query_endpoint(url, cookies=None):
-        return FakeResponse(page)
+@pytest.fixture
+def fake_youtube(monkeypatch):
+    """Fake the oEmbed, channel page, and RSS endpoints, recording each requested URL."""
+    requested = []
+    pages = {"oembed": None, "channel": CHANNEL_PAGE, "feed": FEED}
+
+    async def fake_query_endpoint(url, cookies=None, max_retries=5):
+        requested.append(url)
+        if url.startswith("https://www.youtube.com/oembed"):
+            if pages["oembed"] is not None:
+                return pages["oembed"]
+            return FakeResponse(json_data={"author_url": "https://www.youtube.com/@buffcorrell"})
+        if url.startswith("https://www.youtube.com/feeds/"):
+            return FakeResponse(pages["feed"])
+        return FakeResponse(pages["channel"])
 
     monkeypatch.setattr(queue_sorter, "query_endpoint", fake_query_endpoint)
+    return requested, pages
 
 
-async def test_fetch_publish_time_prefers_full_timestamp(monkeypatch):
-    patch_page(monkeypatch, watch_page({"publishDate": "2024-03-20", "uploadDate": "2024-03-20T05:30:00-07:00"}))
+async def test_fetch_publish_time_from_feed(fake_youtube):
+    db = FakeDB()
 
-    result = await QueueSorter(FakeDB())._fetch_publish_time("abc123")
+    result = await QueueSorter(db)._fetch_publish_time("vidA")
 
-    assert result == datetime(2024, 3, 20, 12, 30, tzinfo=timezone.utc)
-
-
-async def test_fetch_publish_time_falls_back_to_date(monkeypatch):
-    patch_page(monkeypatch, watch_page({"publishDate": "2024-03-20"}))
-
-    result = await QueueSorter(FakeDB())._fetch_publish_time("abc123")
-
-    assert result == datetime(2024, 3, 20, tzinfo=timezone.utc)
+    assert result == datetime(2026, 9, 18, 15, 0, tzinfo=timezone.utc)
+    # Every entry in the feed is cached, not just the requested video.
+    assert db.times == {
+        "vidA": "2026-09-18T15:00:00+00:00",
+        "vidB": "2026-09-10T08:30:00+00:00",
+    }
 
 
-async def test_fetch_publish_time_no_microformat(monkeypatch):
-    patch_page(monkeypatch, watch_page({}))
+async def test_fetch_publish_time_shares_channel_requests(fake_youtube):
+    requested, _ = fake_youtube
+    sorter = QueueSorter(FakeDB())
 
-    assert await QueueSorter(FakeDB())._fetch_publish_time("abc123") is None
+    await sorter._fetch_publish_time("vidA")
+    await sorter._fetch_publish_time("vidOld")
+
+    # Two oEmbed lookups, but the channel page and feed are only fetched once.
+    assert sum(url.startswith("https://www.youtube.com/oembed") for url in requested) == 2
+    assert requested.count("https://www.youtube.com/@buffcorrell") == 1
+    assert sum(url.startswith("https://www.youtube.com/feeds/") for url in requested) == 1
 
 
-async def test_fetch_publish_time_no_player_response(monkeypatch):
-    patch_page(monkeypatch, "<html></html>")
+async def test_fetch_publish_time_not_in_feed(fake_youtube):
+    assert await QueueSorter(FakeDB())._fetch_publish_time("vidOld") is None
 
-    assert await QueueSorter(FakeDB())._fetch_publish_time("abc123") is None
+
+async def test_fetch_publish_time_oembed_failure(fake_youtube):
+    _, pages = fake_youtube
+    pages["oembed"] = FakeResponse()
+
+    assert await QueueSorter(FakeDB())._fetch_publish_time("vidA") is None
 
 
 async def test_fetch_publish_time_request_failure(monkeypatch):
-    async def fake_query_endpoint(url, cookies=None):
-        raise requests.exceptions.HTTPError("429 Too Many Requests")
+    async def fake_query_endpoint(url, cookies=None, max_retries=5):
+        raise requests.exceptions.HTTPError("404 Not Found")
 
     monkeypatch.setattr(queue_sorter, "query_endpoint", fake_query_endpoint)
 
-    assert await QueueSorter(FakeDB())._fetch_publish_time("abc123") is None
+    assert await QueueSorter(FakeDB())._fetch_publish_time("vidA") is None
+
+
+async def test_fetch_publish_time_no_channel_id(fake_youtube):
+    _, pages = fake_youtube
+    pages["channel"] = "<html></html>"
+
+    assert await QueueSorter(FakeDB())._fetch_publish_time("vidA") is None
+
+
+async def test_sort_queue_resets_lookups_between_sorts(fake_youtube):
+    requested, _ = fake_youtube
+    sorter = QueueSorter(FakeDB())
+
+    await sorter.sort_queue([item(1, media_id="vidOld")])
+    await sorter.sort_queue([item(1, media_id="vidOld")])
+
+    # Feeds aren't reused across sorts, so a newly uploaded video can be found.
+    assert sum(url.startswith("https://www.youtube.com/feeds/") for url in requested) == 2
