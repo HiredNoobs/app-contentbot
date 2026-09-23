@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import redis.asyncio as redis
@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup as bs
 from contentbot.common.utils.api_query import query_endpoint
 
 logger: logging.Logger = logging.getLogger("contentbot")
+
+VIDEO_PUBLISH_TIME_TTL = int(timedelta(days=30).total_seconds())
 
 
 class AsyncRedisDB:
@@ -69,6 +71,19 @@ class AsyncRedisDB:
             str: Redis key for the channel.
         """
         return f"{channel_id}@youtube.channel.id"
+
+    @staticmethod
+    def _make_video_publish_time_key(video_id: str) -> str:
+        """
+        Construct the Redis key used to store a video's publish time.
+
+        Args:
+            video_id (str): YouTube video ID.
+
+        Returns:
+            str: Redis key for the video's publish time.
+        """
+        return f"{video_id}@youtube.video.published"
 
     # -----------------------------------------------------
     # General Redis methods
@@ -316,3 +331,37 @@ class AsyncRedisDB:
         tags = data.get("tags", [])
         data["tags"] = [t for t in tags if t not in tags_to_remove]
         await self._save_channel_data(channel_id, data)
+
+    # -----------------------------------------------------
+    # Video methods
+    # -----------------------------------------------------
+
+    async def get_video_publish_time(self, video_id: str) -> Optional[str]:
+        """
+        Get the cached publish time for a video.
+
+        Args:
+            video_id (str): YouTube video ID.
+
+        Returns:
+            Optional[str]: ISO8601 publish time if cached, otherwise None.
+        """
+        raw = await self._redis.get(self._make_video_publish_time_key(video_id))
+        return raw if isinstance(raw, str) else None
+
+    async def set_video_publish_time(self, video_id: str, published: str) -> None:
+        """
+        Cache the publish time for a video.
+
+        The key expires so the cache doesn't grow indefinitely with videos
+        that have long since left the queue.
+
+        Args:
+            video_id (str): YouTube video ID.
+            published (str): ISO8601 publish time.
+        """
+        key = self._make_video_publish_time_key(video_id)
+        try:
+            await self._redis.set(key, published, ex=VIDEO_PUBLISH_TIME_TTL)
+        except Exception:
+            logger.exception("Failed to save key %s.", key)

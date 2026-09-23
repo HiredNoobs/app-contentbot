@@ -20,6 +20,7 @@ from contentbot.common.queue.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.common.utils.ssl import create_ssl_context
 from contentbot.configuration import Configuration
 from contentbot.worker.content_finder import ContentFinder
+from contentbot.worker.queue_sorter import QueueSorter
 from contentbot.worker.random_finder import RandomFinder
 
 logger: logging.Logger = logging.getLogger("contentbot")
@@ -114,7 +115,7 @@ async def run_chatbot(cfg: Dict) -> int:
 
 async def run_worker(cfg: Dict) -> int:
     """
-    Run the background worker responsible for content discovery.
+    Run the background worker responsible for content discovery and queue sorting.
 
     Args:
         cfg (Dict): Full configuration dictionary.
@@ -148,16 +149,23 @@ async def run_worker(cfg: Dict) -> int:
 
     content_finder = ContentFinder()
     random_finder = RandomFinder(cfg["dictonary_file"])
+    queue_sorter = QueueSorter(db)
 
     try:
         async for msg in job_consumer.consume():
             try:
                 job = json.loads(msg.body)
+                # Jobs queued before the type field was added are identified by their keys.
+                job_type = job.get("type")
 
                 content = None
-                if "channel_id" in job.keys():
+                if job_type == "sort_queue":
+                    content = [await queue_sorter.sort_queue(job["playlist"])]
+                elif job_type == "content" or "channel_id" in job:
                     content = await content_finder.find_content(job)
-                elif "random_size" in job.keys():
+                    for c in content:
+                        await db.set_video_publish_time(c["video_id"], c["datetime"])
+                elif job_type == "random" or "random_size" in job:
                     content = [await random_finder.find_random(job["random_size"], job["random_word"])]
 
                 if not content:

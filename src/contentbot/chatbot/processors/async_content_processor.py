@@ -10,7 +10,7 @@ from aio_pika import IncomingMessage
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.db.async_redis_db import AsyncRedisDB
 from contentbot.chatbot.processors.base_processor import BaseProcessor
-from contentbot.chatbot.utils.yt import get_channel_id_from_name, get_video_publish_date
+from contentbot.chatbot.utils.yt import get_channel_id_from_name
 from contentbot.common.queue.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.exceptions import QueueError
 
@@ -148,8 +148,6 @@ class AsyncContentProcessor(BaseProcessor):
 
         try:
             await self._sio.add_video_to_queue(video_id)
-            if dt:
-                self._sio.data.set_video_publish_time(video_id, datetime.fromisoformat(dt))
             if channel_id and dt:
                 await self._db.update_datetime(channel_id, dt)
         except Exception:
@@ -370,7 +368,7 @@ class AsyncContentProcessor(BaseProcessor):
 
             channels = await self._db.get_channels(tag=tag)
             for channel in channels:
-                await self._job_queue.send(channel)
+                await self._job_queue.send({**channel, "type": "content"})
 
             self._sio.data.update_last_content_pull(now, tag=tag)
 
@@ -383,126 +381,60 @@ class AsyncContentProcessor(BaseProcessor):
             word (bool): Whether to use a random word rather than
             a random string.
         """
-        d = {"random_size": size, "random_word": word}
+        d = {"type": "random", "random_size": size, "random_word": word}
         await self._job_queue.send(d)
-
-    @staticmethod
-    def _plan_queue_sort(
-        current_order: List[Optional[int]],
-        desired_order: List[Optional[int]],
-        anchor: str | int,
-    ) -> List[Dict[str, str | int]]:
-        """
-        Build the minimum set of move operations required to reach the desired temp order.
-
-        Items already in the correct relative position are left alone, which avoids
-        reordering the entire temp block when only a few entries are misplaced.
-
-        Args:
-            current_order (List[Optional[int]]): Current temp-item UIDs in queue order.
-            desired_order (List[Optional[int]]): Desired temp-item UIDs in sorted order.
-            anchor (str | int): Queue anchor to place the temp block after; "prepend"
-                means it should be inserted before the permanent queue.
-
-        Returns:
-            List[Dict[str, str | int]]: Move operations containing the source UID and
-            insertion anchor.
-        """
-        if current_order == desired_order:
-            return []
-
-        current: List[int] = [uid for uid in current_order if uid is not None]
-        desired_ids: List[int] = [uid for uid in desired_order if uid is not None]
-        if current == desired_ids:
-            return []
-
-        moves: List[Dict[str, str | int]] = []
-        active_anchor: str | int = anchor
-
-        for desired_uid in desired_ids:
-            if desired_uid not in current:
-                continue
-
-            if active_anchor == "prepend":
-                if current and current[0] == desired_uid:
-                    active_anchor = desired_uid
-                    continue
-            elif isinstance(active_anchor, int) and active_anchor in current:
-                anchor_index = current.index(active_anchor)
-                if anchor_index + 1 < len(current) and current[anchor_index + 1] == desired_uid:
-                    active_anchor = desired_uid
-                    continue
-
-            moves.append({"from": desired_uid, "after": active_anchor})
-            current.remove(desired_uid)
-            if active_anchor == "prepend":
-                current.insert(0, desired_uid)
-            elif isinstance(active_anchor, int) and active_anchor in current:
-                anchor_index = current.index(active_anchor)
-                current.insert(anchor_index + 1, desired_uid)
-            elif isinstance(active_anchor, int):
-                current.append(desired_uid)
-            else:
-                raise TypeError(f"Unsupported queue anchor type: {type(active_anchor)!r}")
-            active_anchor = desired_uid
-
-        return moves
 
     async def _cmd_sort_queue(self) -> None:
         """
-        Reorder temporary queue items behind the permanent queue by upload time.
+        Request a sort of the temporary queue items by publish time.
+
+        The worker plans the moves and returns them for handle_queue_sort to execute.
         """
         playlist = await self._sio.request_playlist()
         if playlist is None:
             await self._sio.send_chat_msg("Queue is empty or could not be retrieved.")
             return
 
-        temp_items = [item for item in playlist if item.get("temp")]
-        if not temp_items:
+        if not any(item.get("temp") for item in playlist):
             await self._sio.send_chat_msg("No temporary videos found.")
             return
 
-        async def publish_time_for(item: Dict) -> datetime:
-            media = item.get("media") or {}
-            video_id = media.get("id")
-            if video_id is None:
-                return datetime.min
+        snapshot = [
+            {
+                "uid": item.get("uid"),
+                "temp": bool(item.get("temp")),
+                "media_id": (item.get("media") or {}).get("id"),
+                "media_type": (item.get("media") or {}).get("type"),
+            }
+            for item in playlist
+        ]
+        await self._job_queue.send({"type": "sort_queue", "playlist": snapshot})
+        await self._sio.send_chat_msg("Sorting queue...")
 
-            known_dt = self._sio.data.get_video_publish_time(video_id)
-            if known_dt is not None:
-                return known_dt
+    async def handle_queue_sort(self, msg: IncomingMessage) -> None:
+        """
+        Execute a queue sort plan returned by the worker.
 
-            fetched_dt = await get_video_publish_date(video_id)
-            if fetched_dt is not None:
-                self._sio.data.set_video_publish_time(video_id, fetched_dt)
-                return fetched_dt
+        The message is acked before the moves are applied; the plan is based on a
+        playlist snapshot, so it shouldn't be redelivered and applied to a changed queue.
 
-            return datetime.min
+        Args:
+            msg (IncomingMessage): RabbitMQ message containing the move plan.
+        """
+        result = json.loads(msg.body)
+        await msg.ack()
 
-        ordered_temp_items = []
-        for item in temp_items:
-            ordered_temp_items.append((await publish_time_for(item), item))
-
-        ordered_temp_items.sort(key=lambda pair: (pair[0], pair[1].get("uid", 0)))
-        ordered_temp_items = [item for _, item in ordered_temp_items]
-
-        current_temp_order = [item.get("uid") for item in temp_items]
-        desired_temp_order = [item.get("uid") for item in ordered_temp_items]
-        if current_temp_order == desired_temp_order:
+        moves = result.get("moves", [])
+        if not moves:
             await self._sio.send_chat_msg("Queue already sorted.")
             return
 
-        anchor_uid = None
-        for queue_item in reversed(playlist):
-            if not queue_item.get("temp"):
-                anchor_uid = queue_item.get("uid")
-                break
-
-        current_anchor = "prepend" if anchor_uid is None else anchor_uid
-        move_plan = self._plan_queue_sort(current_temp_order, desired_temp_order, current_anchor)
-
-        for move in move_plan:
+        for move in moves:
             await self._sio.emit("moveMedia", {"from": move["from"], "after": move["after"]})
             await asyncio.sleep(0.25)
 
         await self._sio.send_chat_msg("Queue sorted.")
+
+        unknown = result.get("unknown", 0)
+        if unknown:
+            await self._sio.send_chat_msg(f"Couldn't find publish dates for {unknown} videos, moved to the end.")

@@ -37,6 +37,7 @@ class RandomFinder:
         Returns:
             Dict[str, str]: A dictionary containing:
                 {
+                    "type": "content",
                     "video_id": "<YouTube video ID>"
                 }
             Returns an empty dict if no videos are found.
@@ -74,7 +75,7 @@ class RandomFinder:
         except ValueError:
             return {}
 
-        return {"video_id": vids[rand_num]["videoRenderer"]["videoId"]}
+        return {"type": "content", "video_id": vids[rand_num]["videoRenderer"]["videoId"]}
 
     def _rand_str(self, size: int) -> str:
         """

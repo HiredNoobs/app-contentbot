@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List
@@ -222,6 +223,11 @@ class AsyncChatBot:
             while not self._sio.data.logged_in:
                 logger.debug("Bot disconnected. Waiting before processing content...")
                 await asyncio.sleep(2)
+
+            # Results without a type are content results.
+            if json.loads(msg.body).get("type") == "sort_queue":
+                await self._content_processor.handle_queue_sort(msg)
+                continue
 
             await self._content_processor.handle_new_content(msg)
             await asyncio.sleep(self._sio.data.current_backoff)

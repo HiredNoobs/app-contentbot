@@ -202,14 +202,6 @@ class TestSIOData:
         assert data.get_last_content_pull() == now
         assert data.get_last_content_pull(tag="all") == now
 
-    def test_set_and_get_video_publish_time(self):
-        data = SIOData()
-        now = datetime(2024, 1, 2, 3, 4, 5)
-
-        data.set_video_publish_time("abc123", now)
-        assert data.get_video_publish_time("abc123") == now
-        assert data.get_video_publish_time("missing") is None
-
     # ------------------------------------------------------------------
     # Reset
     # ------------------------------------------------------------------

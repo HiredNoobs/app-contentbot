@@ -151,7 +151,7 @@ services:
 
 ``remove_tags`` - Remove tags from an existing channel. Usage ``remove_tags CHANNEL_NAME TAG_1 ... TAG_N``.
 
-``sort_queue`` - Sort the temporary videos after the permanent videos based on original publish date.
+``sort_queue`` - Sort the temporary videos after the permanent videos based on original publish date. Videos without a known publish date are placed at the end.
 
 ### Blackjack commands
 

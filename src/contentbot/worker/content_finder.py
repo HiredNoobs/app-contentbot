@@ -27,6 +27,7 @@ class ContentFinder:
         Returns:
             list[dict]: A list of dictionaries, each containing:
                 {
+                    "type": "content",
                     "channel_id": str,
                     "datetime": str (ISO8601),
                     "video_id": str
@@ -64,6 +65,7 @@ class ContentFinder:
             if not self._is_short(title, video_id):
                 content.append(
                     {
+                        "type": "content",
                         "channel_id": channel_id,
                         "datetime": published_str,
                         "video_id": video_id,

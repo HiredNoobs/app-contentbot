@@ -23,7 +23,6 @@ class SIOData:
     _current_media: Optional[Dict] = None
     _users: Dict[str, int] = field(default_factory=dict)
     _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
-    _video_publish_times: Dict[str, datetime] = field(default_factory=dict)
     _last_content_pull: Dict[str, datetime] = field(default_factory=dict)
 
     _logged_in: bool = False
@@ -231,14 +230,6 @@ class SIOData:
         if tag is None:
             tag = "all"
         self._last_content_pull[tag] = new_dt
-
-    def get_video_publish_time(self, video_id: str) -> Optional[datetime]:
-        """Return the upload/publish datetime for a video ID if known."""
-        return self._video_publish_times.get(video_id)
-
-    def set_video_publish_time(self, video_id: str, new_dt: datetime) -> None:
-        """Store the video's upload/publish datetime by video ID."""
-        self._video_publish_times[video_id] = new_dt
 
     # ------------------------------------------------------------------
     # Permissions

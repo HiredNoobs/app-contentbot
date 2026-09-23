@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 from typing import Dict, Optional
 
 from bs4 import BeautifulSoup as bs
@@ -109,35 +108,3 @@ async def get_data_from_pattern(
         return match.group(1) if match else None
     except Exception:
         return None
-
-
-async def get_video_publish_date(video_id: str) -> Optional[datetime]:
-    """
-    Fetch the publish date for a YouTube video using the player metadata script.
-
-    Args:
-        video_id (str): YouTube video identifier.
-
-    Returns:
-        Optional[datetime]: The publish date converted to a datetime, or None if it
-            could not be resolved.
-    """
-    import datetime as _dt
-
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    cookies = {"CONSENT": "YES+1"}
-
-    for pattern in (
-        r'"publishDate":"(\d{4}-\d{2}-\d{2})"',
-        r'"uploadDate":"(\d{4}-\d{2}-\d{2})"',
-    ):
-        published = await get_data_from_pattern(
-            url, pattern, cookies=cookies, script_tag_name="ytInitialPlayerResponse"
-        )
-        if published:
-            try:
-                return _dt.datetime.strptime(published, "%Y-%m-%d")
-            except ValueError:
-                continue
-
-    return None
