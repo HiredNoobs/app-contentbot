@@ -19,7 +19,7 @@ FROM ${PYTHON_IMAGE} AS prod-stage
 
 COPY --from=build-stage /usr/local /usr/local
 
-ADD https://github.com/dwyl/english-words/raw/master/words.txt \
+ADD https://github.com/dwyl/english-words/raw/20f5cc9b3f0ccc8ce45d814c532b7c2031bba31c/words.txt \
     /etc/contentbot/eng_dict.txt
 
 ENTRYPOINT ["contentbot"]
