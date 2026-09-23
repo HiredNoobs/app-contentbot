@@ -10,7 +10,7 @@ from aio_pika import IncomingMessage
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.db.async_redis_db import AsyncRedisDB
 from contentbot.chatbot.processors.base_processor import BaseProcessor
-from contentbot.chatbot.utils.yt import get_channel_id_from_name
+from contentbot.chatbot.utils.yt import get_channel_id_from_name, get_video_publish_date
 from contentbot.common.queue.rabbitmq_producer import AsyncRabbitMQProducer
 from contentbot.exceptions import QueueError
 
@@ -462,20 +462,29 @@ class AsyncContentProcessor(BaseProcessor):
             await self._sio.send_chat_msg("No temporary videos found.")
             return
 
-        def publish_time_for(item: Dict) -> datetime:
+        async def publish_time_for(item: Dict) -> datetime:
             media = item.get("media") or {}
             video_id = media.get("id")
             if video_id is None:
                 return datetime.min
+
             known_dt = self._sio.data.get_video_publish_time(video_id)
             if known_dt is not None:
                 return known_dt
+
+            fetched_dt = await get_video_publish_date(video_id)
+            if fetched_dt is not None:
+                self._sio.data.set_video_publish_time(video_id, fetched_dt)
+                return fetched_dt
+
             return datetime.min
 
-        ordered_temp_items = sorted(
-            temp_items,
-            key=lambda item: (publish_time_for(item), item.get("uid", 0)),
-        )
+        ordered_temp_items = []
+        for item in temp_items:
+            ordered_temp_items.append((await publish_time_for(item), item))
+
+        ordered_temp_items.sort(key=lambda pair: (pair[0], pair[1].get("uid", 0)))
+        ordered_temp_items = [item for _, item in ordered_temp_items]
 
         current_temp_order = [item.get("uid") for item in temp_items]
         desired_temp_order = [item.get("uid") for item in ordered_temp_items]
