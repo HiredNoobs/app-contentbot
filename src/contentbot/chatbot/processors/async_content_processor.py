@@ -427,20 +427,21 @@ class AsyncContentProcessor(BaseProcessor):
                 if current and current[0] == desired_uid:
                     active_anchor = desired_uid
                     continue
-            elif isinstance(active_anchor, int):
-                if active_anchor in current:
-                    anchor_index = current.index(active_anchor)
-                    if anchor_index + 1 < len(current) and current[anchor_index + 1] == desired_uid:
-                        active_anchor = desired_uid
-                        continue
+            elif isinstance(active_anchor, int) and active_anchor in current:
+                anchor_index = current.index(active_anchor)
+                if anchor_index + 1 < len(current) and current[anchor_index + 1] == desired_uid:
+                    active_anchor = desired_uid
+                    continue
 
             moves.append({"from": desired_uid, "after": active_anchor})
             current.remove(desired_uid)
             if active_anchor == "prepend":
                 current.insert(0, desired_uid)
-            elif isinstance(active_anchor, int):
+            elif isinstance(active_anchor, int) and active_anchor in current:
                 anchor_index = current.index(active_anchor)
                 current.insert(anchor_index + 1, desired_uid)
+            elif isinstance(active_anchor, int):
+                current.append(desired_uid)
             else:
                 raise TypeError(f"Unsupported queue anchor type: {type(active_anchor)!r}")
             active_anchor = desired_uid
