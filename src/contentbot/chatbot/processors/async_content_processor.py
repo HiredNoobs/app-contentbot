@@ -386,12 +386,67 @@ class AsyncContentProcessor(BaseProcessor):
         d = {"random_size": size, "random_word": word}
         await self._job_queue.send(d)
 
+    @staticmethod
+    def _plan_queue_sort(
+        current_order: List[Optional[int]],
+        desired_order: List[Optional[int]],
+        anchor: str | int,
+    ) -> List[Dict[str, str | int]]:
+        """
+        Build the minimum set of move operations required to reach the desired temp order.
+
+        Items already in the correct relative position are left alone, which avoids
+        reordering the entire temp block when only a few entries are misplaced.
+
+        Args:
+            current_order (List[Optional[int]]): Current temp-item UIDs in queue order.
+            desired_order (List[Optional[int]]): Desired temp-item UIDs in sorted order.
+            anchor (str | int): Queue anchor to place the temp block after; "prepend"
+                means it should be inserted before the permanent queue.
+
+        Returns:
+            List[Dict[str, str | int]]: Move operations containing the source UID and
+            insertion anchor.
+        """
+        if current_order == desired_order:
+            return []
+
+        current: List[int] = [uid for uid in current_order if uid is not None]
+        desired_ids: List[int] = [uid for uid in desired_order if uid is not None]
+        if current == desired_ids:
+            return []
+
+        moves: List[Dict[str, str | int]] = []
+        current_anchor: str | int = anchor
+
+        for desired_uid in desired_ids:
+            if desired_uid not in current:
+                continue
+
+            desired_index = desired_ids.index(desired_uid)
+            current_index = current.index(desired_uid)
+            if current_index == desired_index:
+                continue
+
+            moves.append({"from": desired_uid, "after": current_anchor})
+            current.remove(desired_uid)
+            if isinstance(current_anchor, str):
+                if current_anchor == "prepend":
+                    current.insert(0, desired_uid)
+                else:
+                    raise ValueError(f"Unsupported queue anchor: {current_anchor!r}")
+            elif isinstance(current_anchor, int):
+                anchor_index = current.index(current_anchor)
+                current.insert(anchor_index + 1, desired_uid)
+            else:
+                raise TypeError(f"Unsupported queue anchor type: {type(current_anchor)!r}")
+            current_anchor = desired_uid
+
+        return moves
+
     async def _cmd_sort_queue(self) -> None:
         """
         Reorder temporary queue items behind the permanent queue by upload time.
-
-        Uses the stored publish timestamps to sort all temporary videos and move
-        them after the final permanent item without assuming a fixed queue index.
         """
         playlist = await self._sio.request_playlist()
         if playlist is None:
@@ -418,7 +473,12 @@ class AsyncContentProcessor(BaseProcessor):
             key=lambda item: (publish_time_for(item), item.get("uid", 0)),
         )
 
-        # Get the UID for the final permanent video's UID
+        current_temp_order = [item.get("uid") for item in temp_items]
+        desired_temp_order = [item.get("uid") for item in ordered_temp_items]
+        if current_temp_order == desired_temp_order:
+            await self._sio.send_chat_msg("Queue already sorted.")
+            return
+
         anchor_uid = None
         for queue_item in reversed(playlist):
             if not queue_item.get("temp"):
@@ -426,13 +486,10 @@ class AsyncContentProcessor(BaseProcessor):
                 break
 
         current_anchor = "prepend" if anchor_uid is None else anchor_uid
+        move_plan = self._plan_queue_sort(current_temp_order, desired_temp_order, current_anchor)
 
-        for item in ordered_temp_items:
-            await self._sio.emit(
-                "moveMedia",
-                {"from": item.get("uid"), "after": current_anchor},
-            )
-            current_anchor = item.get("uid")
-            await asyncio.sleep(0.05)
+        for move in move_plan:
+            await self._sio.emit("moveMedia", {"from": move["from"], "after": move["after"]})
+            await asyncio.sleep(0.25)
 
         await self._sio.send_chat_msg("Queue sorted.")
