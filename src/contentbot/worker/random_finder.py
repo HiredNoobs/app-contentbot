@@ -42,7 +42,7 @@ class RandomFinder:
                 }
             Returns an empty dict if no videos are found.
         """
-        if 0 > size > 10:
+        if not 0 < size <= 10:
             size = 3
 
         if use_dict and self._dictonary_file:

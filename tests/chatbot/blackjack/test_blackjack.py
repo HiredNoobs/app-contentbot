@@ -40,6 +40,10 @@ class TestBlackjack:
         with pytest.raises(Exception, match="No players to start the round."):
             game.start_round()
 
+    def test_pre_round_checks_no_players(self, game):
+        game.start_game()
+        assert game.pre_round_checks() is False
+
     @pytest.mark.asyncio
     async def test_start_round_success(self, monkeypatch, game):
         game.start_game()

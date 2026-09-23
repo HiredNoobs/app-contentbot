@@ -103,3 +103,20 @@ class TestConfiguration:
         assert "cytube_url" in d
         assert "db_host" in d
         assert "rabbitmq_url" in d
+
+    def test_rabbitmq_credentials_are_quoted(self, config_file, monkeypatch):
+        """Special characters in RabbitMQ credentials should be percent-encoded in the URL."""
+        monkeypatch.delenv("DOMAIN", raising=False)
+        data = {
+            "cytube_user": "user123",
+            "cytube_pass": "pass123",
+            "rabbitmq_user": "rmq@user",
+            "rabbitmq_pass": "p@ss:w/rd#1",
+        }
+        with tempfile.NamedTemporaryFile("w", delete=False) as f:
+            yaml.dump(data, f)
+
+        cfg = Configuration(config_file, f.name)
+        cfg.read()
+
+        assert cfg.rabbitmq_url == "amqps://rmq%40user:p%40ss%3Aw%2Frd%231@rabbit:5671/"

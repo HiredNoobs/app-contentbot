@@ -81,12 +81,12 @@ class BlackjackGame:
 
     def pre_round_checks(self) -> bool:
         """
-        Validate that all players have placed bets and the game can begin.
+        Validate that there are players, all players have placed bets, and the game can begin.
 
         Returns:
             bool: True if the round can start, otherwise False.
         """
-        if self._state != "joining":
+        if self._state != "joining" or not self._players:
             return False
 
         if any(player.bet == 0 for player in self._players.values()):

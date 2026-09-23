@@ -216,8 +216,8 @@ class AsyncRedisDB:
             except json.JSONDecodeError:
                 continue
 
-            if data.get("name") == channel_name:
-                return data.get("channelId")
+            if data.get("channel_name") == channel_name:
+                return data.get("channel_id")
 
         return None
 
@@ -270,8 +270,8 @@ class AsyncRedisDB:
             return False
 
         data = {
-            "channelId": channel_id,
-            "name": channel_name,
+            "channel_id": channel_id,
+            "channel_name": channel_name,
             "last_update": published,
             "tags": tags,
         }
@@ -314,6 +314,10 @@ class AsyncRedisDB:
             new_tags (List[str]): Tags to add.
         """
         data = await self._load_channel_data(channel_id)
+        if not data:
+            logger.error("No channel found for ID: %s", channel_id)
+            return
+
         tags = set(data.get("tags", []))
         tags.update(new_tags)
         data["tags"] = list(tags)
@@ -328,6 +332,10 @@ class AsyncRedisDB:
             tags_to_remove (List[str]): Tags to remove.
         """
         data = await self._load_channel_data(channel_id)
+        if not data:
+            logger.error("No channel found for ID: %s", channel_id)
+            return
+
         tags = data.get("tags", [])
         data["tags"] = [t for t in tags if t not in tags_to_remove]
         await self._save_channel_data(channel_id, data)

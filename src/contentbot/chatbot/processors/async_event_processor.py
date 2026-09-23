@@ -31,13 +31,20 @@ class AsyncEventProcessor(BaseProcessor):
         """
         await self._sio.login()
 
-    def handle_disconnect(self):
+    async def handle_disconnect(self):
         """
         Handle a disconnection event.
 
-        Clears all locally stored state where required.
+        Clears all locally stored state where required and requeues any content
+        still waiting on a response from Cytube, as that response will never arrive.
         """
         self._sio.data.reset_data()
+
+        for video_id, msg in self._sio.data.pop_all_pending().items():
+            try:
+                await msg.nack(requeue=True)
+            except Exception:
+                logger.exception("Failed to nack RabbitMQ message for %s", video_id)
 
     async def handle_chat_message(self, data: Dict):
         """

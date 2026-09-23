@@ -30,15 +30,16 @@ async def query_endpoint(
     """
     current_backoff = 0
 
+    # requests is blocking, so each request is run in a thread to avoid stalling the event loop.
     for _ in range(max_retries):
         try:
-            resp = requests.get(url, cookies=cookies, timeout=60)
+            resp = await asyncio.to_thread(requests.get, url, cookies=cookies, timeout=60)
             resp.raise_for_status()
             return resp
         except requests.exceptions.HTTPError:
             current_backoff = min(current_backoff + backoff_factor, max_backoff)
             await asyncio.sleep(current_backoff)
 
-    resp = requests.get(url, cookies=cookies, timeout=60)
+    resp = await asyncio.to_thread(requests.get, url, cookies=cookies, timeout=60)
     resp.raise_for_status()
     return resp

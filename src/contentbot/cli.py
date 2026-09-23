@@ -134,13 +134,7 @@ async def run_worker(cfg: Dict) -> int:
         cfg["db_key"],
     )
 
-    if cfg["rabbitmq_ca_cert"] and cfg["rabbitmq_cert"] and cfg["rabbitmq_cert"]:
-        logger.debug("Creating SSL context for RabbitMQ.")
-        rabbit_ssl = create_ssl_context(cfg["rabbitmq_ca_cert"], cfg["rabbitmq_cert"], cfg["rabbitmq_key"])
-    else:
-        logger.debug("Missing config for RabbitMQ SSL, attempting without SSL context.")
-        rabbit_ssl = None
-
+    rabbit_ssl = create_ssl_context(cfg["rabbitmq_ca_cert"], cfg["rabbitmq_cert"], cfg["rabbitmq_key"])
     job_consumer = AsyncRabbitMQConsumer(cfg["rabbitmq_url"], cfg["rabbitmq_job_queue"], rabbit_ssl)
     result_producer = AsyncRabbitMQProducer(cfg["rabbitmq_url"], cfg["rabbitmq_result_queue"], rabbit_ssl)
 
@@ -166,7 +160,8 @@ async def run_worker(cfg: Dict) -> int:
                     for c in content:
                         await db.set_video_publish_time(c["video_id"], c["datetime"])
                 elif job_type == "random" or "random_size" in job:
-                    content = [await random_finder.find_random(job["random_size"], job["random_word"])]
+                    random_content = await random_finder.find_random(job["random_size"], job["random_word"])
+                    content = [random_content] if random_content else None
 
                 if not content:
                     await job_consumer.commit(msg)

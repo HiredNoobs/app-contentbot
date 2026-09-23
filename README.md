@@ -12,7 +12,7 @@ It's safe to leave the bot running 24/7; when alone in a channel (where alone me
 
 Requirements:
     - A Cytube user with the moderator role (assuming the channel is using default permissions; otherwise make sure the user has access to the chat, adding items to the queue, and the ability to promote itself to leader)
-    - Python 3 (>3.10)
+    - Python 3 (>=3.14.3)
     - RabbitMQ (used to pass jobs between the ``chatbot`` and the ``worker``.)
     - Redis (used as a basic "database" for channels)
 

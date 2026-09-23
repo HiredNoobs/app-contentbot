@@ -201,6 +201,17 @@ class SIOData:
         """
         self._pending.pop(video_id, None)
 
+    def pop_all_pending(self) -> Dict[str, IncomingMessage]:
+        """
+        Remove and return all pending RabbitMQ messages.
+
+        Returns:
+            Dict[str, IncomingMessage]: Pending messages keyed by video ID.
+        """
+        pending = self._pending
+        self._pending = {}
+        return pending
+
     # ------------------------------------------------------------------
     # Content
     # ------------------------------------------------------------------

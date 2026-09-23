@@ -2,7 +2,6 @@ from typing import Dict, List
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.blackjack.blackjack import BlackjackGame
-from contentbot.chatbot.blackjack.utils import calculate_hand_value
 from contentbot.chatbot.processors.base_processor import BaseProcessor
 
 
@@ -36,10 +35,6 @@ class AsyncBlackjackProcessor(BaseProcessor):
     async def _handle_end_round(self) -> None:
         """Complete the dealer's turn and resolve the round for all players."""
         self._blackjack.dealer_play()
-        dealer_value = calculate_hand_value(self._blackjack.dealer_hand)
-        await self._sio.send_chat_msg(
-            f"Dealer's hand: {self._blackjack.dealer_hand} (Value: {dealer_value})",
-        )
         await self._blackjack.resolve_round()
 
     # -----------------------------------------------------

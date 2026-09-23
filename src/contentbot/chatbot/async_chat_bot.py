@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from contentbot.chatbot.async_socket import AsyncSocket
 from contentbot.chatbot.commands import Commands
@@ -13,7 +13,7 @@ from contentbot.chatbot.processors.async_blackjack_processor import (
 from contentbot.chatbot.processors.async_content_processor import AsyncContentProcessor
 from contentbot.chatbot.processors.async_event_processor import AsyncEventProcessor
 from contentbot.common.queue.rabbitmq_consumer import AsyncRabbitMQConsumer
-from contentbot.exceptions import RemovedFromChannelError
+from contentbot.exceptions import AuthenticationError, RemovedFromChannelError
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
@@ -54,7 +54,22 @@ class AsyncChatBot:
         self._db = db
         self._result_consumer = result_consumer
 
+        # Exceptions raised inside Socket.IO handlers are logged and swallowed by
+        # the client, so fatal errors are stored here and re-raised from run().
+        self._fatal_error: Optional[Exception] = None
+
         self._register_handlers()
+
+    async def _stop(self, error: Exception) -> None:
+        """
+        Record a fatal error and disconnect so that run() exits and raises it.
+
+        Args:
+            error (Exception): The error to raise from run().
+        """
+        logger.error("Stopping bot: %s", error)
+        self._fatal_error = error
+        await self._sio._client.disconnect()
 
     def _should_process_chat(self, data: Dict) -> bool:
         """
@@ -73,13 +88,13 @@ class AsyncChatBot:
         """
         username = data.get("username")
         msg = data.get("msg", None)
-        chat_ts = datetime.fromtimestamp(data["time"] / 1000)
+        timestamp = data.get("time")
 
-        if not username or not msg or not chat_ts:
+        if not username or not msg or not msg.strip() or not timestamp:
             logger.debug("Chat message (%s) missing required fields.", msg)
             return False
 
-        if chat_ts < datetime.now() - timedelta(seconds=10):
+        if datetime.fromtimestamp(timestamp / 1000) < datetime.now() - timedelta(seconds=10):
             logger.debug("Chat message (%s) is too old.", msg)
             return False
 
@@ -104,13 +119,13 @@ class AsyncChatBot:
 
         @self._sio._client.event
         async def kick(data: Dict) -> None:
-            logger.info("Bot was kicked due to %s", data["reason"])
-            raise RemovedFromChannelError(f"Bot was kicked due to {data['reason']}")
+            logger.info("Bot was kicked due to %s", data.get("reason"))
+            await self._stop(RemovedFromChannelError(f"Bot was kicked due to {data.get('reason')}"))
 
         @self._sio._client.event
         async def disconnect() -> None:
             logger.info("Socket disconnected.")
-            self._event_processor.handle_disconnect()
+            await self._event_processor.handle_disconnect()
 
         @self._sio._client.event
         async def chatMsg(data: Dict) -> None:
@@ -171,8 +186,12 @@ class AsyncChatBot:
             logger.debug("login event captured: %s", data)
             if data["success"]:
                 await self._event_processor.handle_successful_login(data)
-            else:
+                return
+
+            try:
                 await self._event_processor.handle_failed_login(data)
+            except AuthenticationError as err:
+                await self._stop(err)
 
         @self._sio._client.event
         async def setPermissions(data: Dict) -> None:
@@ -210,9 +229,17 @@ class AsyncChatBot:
             await self._event_processor.handle_playlist_response(data)
 
     async def run(self):
-        """Start the bot by connecting to Socket.IO and waiting indefinitely."""
+        """
+        Start the bot by connecting to Socket.IO and waiting until it disconnects.
+
+        Raises:
+            Exception: The fatal error that caused the bot to stop, if any.
+        """
         await self._sio.connect()
         await self._sio._client.wait()
+
+        if self._fatal_error:
+            raise self._fatal_error
 
     async def read_content_queue(self):
         """
@@ -224,8 +251,15 @@ class AsyncChatBot:
                 logger.debug("Bot disconnected. Waiting before processing content...")
                 await asyncio.sleep(2)
 
+            try:
+                result = json.loads(msg.body)
+            except json.JSONDecodeError:
+                logger.error("Discarding invalid result from RabbitMQ: %s", msg.body)
+                await msg.nack(requeue=False)
+                continue
+
             # Results without a type are content results.
-            if json.loads(msg.body).get("type") == "sort_queue":
+            if result.get("type") == "sort_queue":
                 await self._content_processor.handle_queue_sort(msg)
                 continue
 

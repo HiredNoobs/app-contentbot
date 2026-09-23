@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import Any, Dict
+from urllib.parse import quote
 
 import yaml
 
@@ -94,8 +95,9 @@ class Configuration:
         self.db_pass = secrets.get("db_pass")
 
         # RabbitMQ
-        rabbitmq_user = secrets.get("rabbitmq_user", "guest")
-        rabbitmq_pass = secrets.get("rabbitmq_pass", "guest")
+        # Credentials are quoted so special characters don't break the URL.
+        rabbitmq_user = quote(str(secrets.get("rabbitmq_user", "guest")), safe="")
+        rabbitmq_pass = quote(str(secrets.get("rabbitmq_pass", "guest")), safe="")
 
         if self._domain:
             self.rabbitmq_url = (

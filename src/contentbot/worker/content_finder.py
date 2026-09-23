@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, List
@@ -62,7 +63,7 @@ class ContentFinder:
             if not video_id:
                 continue
 
-            if not self._is_short(title, video_id):
+            if not await self._is_short(title, video_id):
                 content.append(
                     {
                         "type": "content",
@@ -94,7 +95,7 @@ class ContentFinder:
 
         raise ValueError(f"Expected tag <{target}> not found inside '{tag.name}'")
 
-    def _is_short(self, title: str, id: str) -> bool:
+    async def _is_short(self, title: str, id: str) -> bool:
         """
         Determine whether a video is a YouTube Shorts video.
 
@@ -109,7 +110,9 @@ class ContentFinder:
             return True
 
         shorts_url = f"https://www.youtube.com/shorts/{id}"
-        resp = requests.head(shorts_url, cookies={"CONSENT": "YES+1"}, timeout=60, allow_redirects=False)
+        resp = await asyncio.to_thread(
+            requests.head, shorts_url, cookies={"CONSENT": "YES+1"}, timeout=60, allow_redirects=False
+        )
 
         if resp.status_code == 303 or resp.status_code == 302:
             return False

@@ -135,7 +135,11 @@ class AsyncContentProcessor(BaseProcessor):
             msg (IncomingMessage): RabbitMQ message containing content data.
         """
         content = json.loads(msg.body)
-        video_id = content["video_id"]
+        video_id = content.get("video_id")
+        if not video_id:
+            logger.error("Discarding content result without a video ID: %s", content)
+            await msg.nack(requeue=False)
+            return
 
         channel_id = content.get("channel_id")
         dt = content.get("datetime")
@@ -152,6 +156,7 @@ class AsyncContentProcessor(BaseProcessor):
                 await self._db.update_datetime(channel_id, dt)
         except Exception:
             logger.exception("Failed to add video to queue")
+            self._sio.data.remove_pending(video_id)
             await msg.nack(requeue=True)
 
     async def handle_successful_queue(self, data: Dict) -> None:
@@ -283,9 +288,7 @@ class AsyncContentProcessor(BaseProcessor):
                     await self._sio.send_chat_msg("Missing args for remove_tags.")
                     return
 
-                channel = args[0]
-                tags = args[1:]
-                await self._db.remove_tags(channel, tags)
+                await self._cmd_remove_tags(args[0], args[1:])
             case "sort_queue":
                 if not self._sio.data.is_user_moderator(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
@@ -341,6 +344,22 @@ class AsyncContentProcessor(BaseProcessor):
 
         await self._db.add_tags(channel_id, tags)
         await self._sio.send_chat_msg(f"{tags} added to {channel_name}")
+
+    async def _cmd_remove_tags(self, channel_name: str, tags: List[str]) -> None:
+        """
+        Remove tags from an existing channel.
+
+        Args:
+            channel_name (str): Channel name.
+            tags (List[str]): Tags to remove.
+        """
+        channel_id = await self._db.get_channel_id(channel_name)
+        if not channel_id:
+            await self._sio.send_chat_msg(f"{channel_name} not in DB.")
+            return
+
+        await self._db.remove_tags(channel_id, tags)
+        await self._sio.send_chat_msg(f"{tags} removed from {channel_name}")
 
     async def _cmd_content_search(self, tags: List[str]) -> None:
         """
