@@ -221,6 +221,7 @@ class AsyncContentProcessor(BaseProcessor):
             case "add_channel":
                 if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
+                    return
 
                 if not args:
                     await self._sio.send_chat_msg("No channel provided.")
@@ -230,6 +231,7 @@ class AsyncContentProcessor(BaseProcessor):
             case "add_channels":
                 if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
+                    return
 
                 if not args:
                     await self._sio.send_chat_msg("No channels provided.")
@@ -240,6 +242,7 @@ class AsyncContentProcessor(BaseProcessor):
             case "add_tags":
                 if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
+                    return
 
                 if len(args) < 2:
                     await self._sio.send_chat_msg("Missing args for add_tags.")
@@ -249,6 +252,7 @@ class AsyncContentProcessor(BaseProcessor):
             case "content":
                 if not self._sio.data.is_user_moderator(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
+                    return
 
                 await self._cmd_content_search(args)
             case "random" | "random_word":
@@ -262,6 +266,7 @@ class AsyncContentProcessor(BaseProcessor):
             case "remove_channel" | "remove_channels":
                 if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
+                    return
 
                 if not args:
                     await self._sio.send_chat_msg("No channels provided.")
@@ -272,6 +277,7 @@ class AsyncContentProcessor(BaseProcessor):
             case "remove_tags":
                 if not self._sio.data.is_user_admin(username):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
+                    return
 
                 if len(args) < 2:
                     await self._sio.send_chat_msg("Missing args for remove_tags.")

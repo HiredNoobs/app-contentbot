@@ -246,7 +246,7 @@ class AsyncRedisDB:
             bool: True if added successfully, False if the channel already exists or if the
             XML feed can't be loaded for the channel.
         """
-        if self._channel_exists(channel_id):
+        if await self._channel_exists(channel_id):
             return False
 
         if not tags:

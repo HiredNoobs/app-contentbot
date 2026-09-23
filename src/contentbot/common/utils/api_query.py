@@ -28,18 +28,17 @@ async def query_endpoint(
         requests.exceptions.HTTPError: If all retries fail or the final
             response still contains an HTTP error status.
     """
-    retries = 0
     current_backoff = 0
 
-    while retries <= max_retries:
+    for _ in range(max_retries):
         try:
             resp = requests.get(url, cookies=cookies, timeout=60)
             resp.raise_for_status()
+            return resp
         except requests.exceptions.HTTPError:
             current_backoff = min(current_backoff + backoff_factor, max_backoff)
             await asyncio.sleep(current_backoff)
 
-        retries += 1
-
+    resp = requests.get(url, cookies=cookies, timeout=60)
     resp.raise_for_status()
     return resp
