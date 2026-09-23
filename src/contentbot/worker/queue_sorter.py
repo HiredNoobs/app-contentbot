@@ -1,5 +1,5 @@
+import json
 import logging
-import re
 from bisect import bisect_left
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
@@ -11,13 +11,7 @@ from contentbot.common.utils.api_query import query_endpoint
 
 logger: logging.Logger = logging.getLogger("contentbot")
 
-# Ordered by preference; YouTube usually includes a full ISO8601 timestamp in
-# publishDate, but older pages may only include the date.
-PUBLISH_TIME_PATTERNS = (
-    re.compile(r'"publishDate":"([^"]+)"'),
-    re.compile(r'"uploadDate":"([^"]+)"'),
-    re.compile(r'itemprop="datePublished" content="([^"]+)"'),
-)
+PLAYER_RESPONSE_MARKER = "ytInitialPlayerResponse = "
 
 
 class QueueSorter:
@@ -117,28 +111,67 @@ class QueueSorter:
         url = f"https://www.youtube.com/watch?v={video_id}"
 
         try:
-            resp = await query_endpoint(url, cookies={"CONSENT": "YES+1"})
-        except requests.exceptions.RequestException:
-            logger.warning("Failed to fetch watch page for %s", video_id)
+            resp = await query_endpoint(url)
+        except requests.exceptions.RequestException as err:
+            logger.warning("Failed to fetch watch page for %s: %s", video_id, err)
             return None
 
+        player_response = self._parse_player_response(resp.text)
+        if not player_response:
+            # Include the final URL, as a redirect (e.g. to a consent page) is the likely cause.
+            logger.warning("No ytInitialPlayerResponse found for %s (final URL: %s)", video_id, resp.url)
+            return None
+
+        microformat = player_response.get("microformat", {}).get("playerMicroformatRenderer", {})
+
         fallback: Optional[datetime] = None
-        for pattern in PUBLISH_TIME_PATTERNS:
-            match = pattern.search(resp.text)
-            if not match:
+        for key in ("publishDate", "uploadDate"):
+            raw = microformat.get(key)
+            if not raw:
                 continue
 
-            raw = match.group(1)
             try:
                 published = self._as_utc(datetime.fromisoformat(raw))
             except ValueError:
+                logger.warning("Invalid %s for %s: %s", key, video_id, raw)
                 continue
 
             if "T" in raw:
                 return published
             fallback = fallback or published
 
+        if fallback is None:
+            logger.warning("No publish date in ytInitialPlayerResponse for %s", video_id)
+
         return fallback
+
+    @staticmethod
+    def _parse_player_response(page: str) -> Optional[Dict]:
+        """
+        Extract the ytInitialPlayerResponse JSON from a watch page.
+
+        The JSON is decoded from the assignment onwards rather than split on the end of
+        the script tag, as the same script tag can contain further statements after it.
+
+        Args:
+            page (str): Watch page HTML.
+
+        Returns:
+            Optional[Dict]: The parsed player response, or None if it couldn't be found.
+        """
+        decoder = json.JSONDecoder()
+
+        # Skip any assignments that aren't the player response object itself (e.g. null).
+        for candidate in page.split(PLAYER_RESPONSE_MARKER)[1:]:
+            try:
+                player_response, _ = decoder.raw_decode(candidate)
+            except json.JSONDecodeError:
+                continue
+
+            if isinstance(player_response, dict):
+                return player_response
+
+        return None
 
     @staticmethod
     def _as_utc(dt: datetime) -> datetime:

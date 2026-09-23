@@ -1,6 +1,8 @@
+import json
 from datetime import datetime, timezone
 
 import pytest
+import requests
 
 from contentbot.worker import queue_sorter
 from contentbot.worker.queue_sorter import QueueSorter
@@ -19,6 +21,7 @@ def apply_moves(order, moves):
 class FakeResponse:
     def __init__(self, text: str):
         self.text = text
+        self.url = "https://www.youtube.com/watch?v=abc123"
 
 
 class FakeDB:
@@ -141,11 +144,25 @@ async def test_sort_queue_fetches_and_caches_missing_times(monkeypatch):
 # ------------------------------------------------------------------
 
 
-async def test_fetch_publish_time_prefers_full_timestamp(monkeypatch):
+def watch_page(microformat):
+    """Build a minimal watch page containing a ytInitialPlayerResponse script."""
+    player_response = json.dumps({"microformat": {"playerMicroformatRenderer": microformat}})
+    return (
+        "<html><script>var ytInitialPlayerResponse = null;</script>"
+        f"<script>var ytInitialPlayerResponse = {player_response};var meta = document.createElement('meta');</script>"
+        "</html>"
+    )
+
+
+def patch_page(monkeypatch, page):
     async def fake_query_endpoint(url, cookies=None):
-        return FakeResponse('{"publishDate":"2024-03-20","uploadDate":"2024-03-20T05:30:00-07:00"}')
+        return FakeResponse(page)
 
     monkeypatch.setattr(queue_sorter, "query_endpoint", fake_query_endpoint)
+
+
+async def test_fetch_publish_time_prefers_full_timestamp(monkeypatch):
+    patch_page(monkeypatch, watch_page({"publishDate": "2024-03-20", "uploadDate": "2024-03-20T05:30:00-07:00"}))
 
     result = await QueueSorter(FakeDB())._fetch_publish_time("abc123")
 
@@ -153,19 +170,28 @@ async def test_fetch_publish_time_prefers_full_timestamp(monkeypatch):
 
 
 async def test_fetch_publish_time_falls_back_to_date(monkeypatch):
-    async def fake_query_endpoint(url, cookies=None):
-        return FakeResponse('{"publishDate":"2024-03-20"}')
-
-    monkeypatch.setattr(queue_sorter, "query_endpoint", fake_query_endpoint)
+    patch_page(monkeypatch, watch_page({"publishDate": "2024-03-20"}))
 
     result = await QueueSorter(FakeDB())._fetch_publish_time("abc123")
 
     assert result == datetime(2024, 3, 20, tzinfo=timezone.utc)
 
 
-async def test_fetch_publish_time_missing(monkeypatch):
+async def test_fetch_publish_time_no_microformat(monkeypatch):
+    patch_page(monkeypatch, watch_page({}))
+
+    assert await QueueSorter(FakeDB())._fetch_publish_time("abc123") is None
+
+
+async def test_fetch_publish_time_no_player_response(monkeypatch):
+    patch_page(monkeypatch, "<html></html>")
+
+    assert await QueueSorter(FakeDB())._fetch_publish_time("abc123") is None
+
+
+async def test_fetch_publish_time_request_failure(monkeypatch):
     async def fake_query_endpoint(url, cookies=None):
-        return FakeResponse("<html></html>")
+        raise requests.exceptions.HTTPError("429 Too Many Requests")
 
     monkeypatch.setattr(queue_sorter, "query_endpoint", fake_query_endpoint)
 
