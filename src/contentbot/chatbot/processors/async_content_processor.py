@@ -417,30 +417,33 @@ class AsyncContentProcessor(BaseProcessor):
             return []
 
         moves: List[Dict[str, str | int]] = []
-        current_anchor: str | int = anchor
+        active_anchor: str | int = anchor
 
         for desired_uid in desired_ids:
             if desired_uid not in current:
                 continue
 
-            desired_index = desired_ids.index(desired_uid)
-            current_index = current.index(desired_uid)
-            if current_index == desired_index:
-                continue
+            if active_anchor == "prepend":
+                if current and current[0] == desired_uid:
+                    active_anchor = desired_uid
+                    continue
+            elif isinstance(active_anchor, int):
+                if active_anchor in current:
+                    anchor_index = current.index(active_anchor)
+                    if anchor_index + 1 < len(current) and current[anchor_index + 1] == desired_uid:
+                        active_anchor = desired_uid
+                        continue
 
-            moves.append({"from": desired_uid, "after": current_anchor})
+            moves.append({"from": desired_uid, "after": active_anchor})
             current.remove(desired_uid)
-            if isinstance(current_anchor, str):
-                if current_anchor == "prepend":
-                    current.insert(0, desired_uid)
-                else:
-                    raise ValueError(f"Unsupported queue anchor: {current_anchor!r}")
-            elif isinstance(current_anchor, int):
-                anchor_index = current.index(current_anchor)
+            if active_anchor == "prepend":
+                current.insert(0, desired_uid)
+            elif isinstance(active_anchor, int):
+                anchor_index = current.index(active_anchor)
                 current.insert(anchor_index + 1, desired_uid)
             else:
-                raise TypeError(f"Unsupported queue anchor type: {type(current_anchor)!r}")
-            current_anchor = desired_uid
+                raise TypeError(f"Unsupported queue anchor type: {type(active_anchor)!r}")
+            active_anchor = desired_uid
 
         return moves
 
