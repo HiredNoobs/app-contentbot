@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from contentbot.worker import queue_sorter
-from contentbot.worker.queue_sorter import QueueSorter, plan_moves
+from contentbot.worker.queue_sorter import QueueSorter
 
 
 def apply_moves(order, moves):
@@ -37,21 +37,21 @@ def item(uid, temp=True, media_id=None, media_type="yt"):
 
 
 # ------------------------------------------------------------------
-# plan_moves
+# _plan_moves
 # ------------------------------------------------------------------
 
 
 def test_plan_moves_already_sorted():
-    assert plan_moves([1, 2, 3], [1, 2, 3]) == []
+    assert QueueSorter._plan_moves([1, 2, 3], [1, 2, 3]) == []
 
 
 def test_plan_moves_only_moves_misplaced_item():
-    moves = plan_moves([1, 5, 2, 3, 4], [1, 2, 3, 4, 5])
+    moves = QueueSorter._plan_moves([1, 5, 2, 3, 4], [1, 2, 3, 4, 5])
     assert moves == [{"from": 5, "after": 4}]
 
 
 def test_plan_moves_prepend():
-    moves = plan_moves([2, 3, 1], [1, 2, 3])
+    moves = QueueSorter._plan_moves([2, 3, 1], [1, 2, 3])
     assert moves == [{"from": 1, "after": "prepend"}]
 
 
@@ -65,13 +65,13 @@ def test_plan_moves_prepend():
     ],
 )
 def test_plan_moves_reaches_desired_order(current, desired):
-    moves = plan_moves(current, desired)
+    moves = QueueSorter._plan_moves(current, desired)
     assert apply_moves(current, moves) == desired
 
 
 def test_plan_moves_minimum_count():
     # Longest run already in order is 1, 2, 3 so only 4 and 5 need to move.
-    moves = plan_moves([4, 1, 2, 5, 3], [1, 2, 3, 4, 5])
+    moves = QueueSorter._plan_moves([4, 1, 2, 5, 3], [1, 2, 3, 4, 5])
     assert len(moves) == 2
 
 
@@ -106,10 +106,10 @@ async def test_sort_queue_compares_naive_and_aware_times():
 
 
 async def test_sort_queue_places_unknown_last(monkeypatch):
-    async def fake_fetch(video_id):
+    async def fake_fetch(self, video_id):
         return None
 
-    monkeypatch.setattr(queue_sorter, "fetch_publish_time", fake_fetch)
+    monkeypatch.setattr(QueueSorter, "_fetch_publish_time", fake_fetch)
     db = FakeDB({"vid2": "2024-01-01T00:00:00+00:00", "vid4": "2023-01-01T00:00:00+00:00"})
     playlist = [item(1), item(2), item(3, media_type="vi"), item(4)]
 
@@ -122,11 +122,11 @@ async def test_sort_queue_places_unknown_last(monkeypatch):
 async def test_sort_queue_fetches_and_caches_missing_times(monkeypatch):
     fetched = []
 
-    async def fake_fetch(video_id):
+    async def fake_fetch(self, video_id):
         fetched.append(video_id)
         return datetime(2020, 1, 1, tzinfo=timezone.utc)
 
-    monkeypatch.setattr(queue_sorter, "fetch_publish_time", fake_fetch)
+    monkeypatch.setattr(QueueSorter, "_fetch_publish_time", fake_fetch)
     db = FakeDB({"vid1": "2024-01-01T00:00:00+00:00"})
 
     result = await QueueSorter(db).sort_queue([item(1), item(2)])
@@ -137,7 +137,7 @@ async def test_sort_queue_fetches_and_caches_missing_times(monkeypatch):
 
 
 # ------------------------------------------------------------------
-# fetch_publish_time
+# _fetch_publish_time
 # ------------------------------------------------------------------
 
 
@@ -147,7 +147,7 @@ async def test_fetch_publish_time_prefers_full_timestamp(monkeypatch):
 
     monkeypatch.setattr(queue_sorter, "query_endpoint", fake_query_endpoint)
 
-    result = await queue_sorter.fetch_publish_time("abc123")
+    result = await QueueSorter(FakeDB())._fetch_publish_time("abc123")
 
     assert result == datetime(2024, 3, 20, 12, 30, tzinfo=timezone.utc)
 
@@ -158,7 +158,7 @@ async def test_fetch_publish_time_falls_back_to_date(monkeypatch):
 
     monkeypatch.setattr(queue_sorter, "query_endpoint", fake_query_endpoint)
 
-    result = await queue_sorter.fetch_publish_time("abc123")
+    result = await QueueSorter(FakeDB())._fetch_publish_time("abc123")
 
     assert result == datetime(2024, 3, 20, tzinfo=timezone.utc)
 
@@ -169,4 +169,4 @@ async def test_fetch_publish_time_missing(monkeypatch):
 
     monkeypatch.setattr(queue_sorter, "query_endpoint", fake_query_endpoint)
 
-    assert await queue_sorter.fetch_publish_time("abc123") is None
+    assert await QueueSorter(FakeDB())._fetch_publish_time("abc123") is None
