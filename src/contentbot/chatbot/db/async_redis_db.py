@@ -110,7 +110,7 @@ class AsyncRedisDB:
         Returns:
             str: Redis key for the batch.
         """
-        return f"{batch_id}@contentbot.batch"
+        return f"{batch_id}@youtube.content.batch"
 
     # -----------------------------------------------------
     # General Redis methods
