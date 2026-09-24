@@ -47,6 +47,8 @@ class AsyncRabbitMQConsumer:
         )
 
         self._channel = await self._connection.channel()
+        # The chatbot relies on this being 1 to know a content batch's videos have all
+        # been added once its job_done messages arrive, see handle_job_done.
         await self._channel.set_qos(prefetch_count=1)
 
         self._queue = await self._channel.declare_queue(

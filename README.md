@@ -151,7 +151,7 @@ services:
 
 ``remove_tags`` - Remove tags from an existing channel. Usage ``remove_tags CHANNEL_NAME TAG_1 ... TAG_N``.
 
-``sort_queue`` - Sort the temporary videos after the permanent videos based on original publish date. Publish dates come from each channel's RSS feed, so only recent uploads can be dated. Videos without a known publish date stay where they are, except videos from ``random``/``random_word``, which are placed at the end.
+``sort_queue`` - Sort the temporary videos after the permanent videos based on original publish date. Publish dates come from each channel's RSS feed, so only recent uploads can be dated. Videos without a known publish date stay where they are, except videos from ``random``/``random_word``, which are placed at the end. The queue is also sorted automatically once all of the videos found by a ``content`` command have been added. Cytube only allows the playlist to be fetched once every 60 seconds, so a sort may be delayed until it can be.
 
 ### Blackjack commands
 

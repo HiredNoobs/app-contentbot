@@ -1,9 +1,11 @@
 import asyncio
 import json
 import logging
+import math
 import re
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Coroutine, Dict, List, Optional, Set
+from uuid import uuid4
 
 from aio_pika import IncomingMessage
 
@@ -42,6 +44,10 @@ class AsyncContentProcessor(BaseProcessor):
         super().__init__(sio)
         self._db = db
         self._job_queue = job_queue
+
+        self._sort_scheduled = False
+        # asyncio only keeps weak references to tasks, so they're held here until done.
+        self._tasks: Set[asyncio.Task] = set()
 
     # -----------------------------------------------------
     # Helper methods
@@ -88,6 +94,57 @@ class AsyncContentProcessor(BaseProcessor):
         if CHANNEL_PATTERN.match(channel_name):
             return True
         return False
+
+    def _create_task(self, coro: Coroutine) -> asyncio.Task:
+        """
+        Run a coroutine in the background, keeping a reference to it until it's done.
+
+        Args:
+            coro (Coroutine): Coroutine to run.
+
+        Returns:
+            asyncio.Task: The created task.
+        """
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return task
+
+    def _schedule_sort(self) -> Optional[float]:
+        """
+        Schedule a queue sort for as soon as Cytube allows the playlist to be requested.
+
+        A sort that is still waiting to run is reused, so it will include anything
+        added in the meantime.
+
+        Returns:
+            Optional[float]: Seconds until the sort runs, or None if one was already scheduled.
+        """
+        if self._sort_scheduled:
+            return None
+
+        delay = self._sio.data.seconds_until_playlist_request()
+        self._sort_scheduled = True
+        self._create_task(self._run_scheduled_sort(delay))
+        return delay
+
+    async def _run_scheduled_sort(self, delay: float) -> None:
+        """
+        Wait out the playlist request rate limit, then sort the queue.
+
+        Args:
+            delay (float): Seconds to wait before sorting.
+        """
+        try:
+            await asyncio.sleep(delay)
+        finally:
+            # Once the playlist is requested, later sorts need a new snapshot.
+            self._sort_scheduled = False
+
+        try:
+            await self._cmd_sort_queue()
+        except Exception:
+            logger.exception("Failed to sort the queue")
 
     # -----------------------------------------------------
     # Event handlers
@@ -209,6 +266,31 @@ class AsyncContentProcessor(BaseProcessor):
         finally:
             self._sio.data.remove_pending(video_id)
 
+    async def handle_job_done(self, msg: IncomingMessage) -> None:
+        """
+        Handle a worker reporting that a content job has finished,
+        sorting the queue if it was the last job of its batch.
+
+        The worker sends job_done after the job's results, and the result consumer's
+        prefetch_count of 1 means a message isn't delivered until every message before it
+        is acked or nacked. Content results are only settled once Cytube responds (and
+        requeued results go back ahead of this message), so by now all of the job's
+        videos have been added. Raising the prefetch count would break this.
+
+        If a job_done is never received, e.g. the worker died, the batch never finishes
+        and the queue has to be sorted manually.
+
+        Args:
+            msg (IncomingMessage): RabbitMQ message containing the batch ID.
+        """
+        result = json.loads(msg.body)
+        await msg.ack()
+
+        batch_id = result.get("batch_id")
+        if batch_id and self._sio.data.complete_content_job(batch_id):
+            logger.info("Content batch %s finished.", batch_id)
+            self._schedule_sort()
+
     # -----------------------------------------------------
     # Command handlers
     # -----------------------------------------------------
@@ -294,7 +376,13 @@ class AsyncContentProcessor(BaseProcessor):
                     await self._sio.send_chat_msg("You don't have permission to do that.")
                     return
 
-                await self._cmd_sort_queue()
+                delay = self._schedule_sort()
+                if delay is None:
+                    await self._sio.send_chat_msg("A queue sort is already scheduled.")
+                elif delay > 0:
+                    await self._sio.send_chat_msg(
+                        f"The queue was fetched recently, sorting in {math.ceil(delay)} seconds..."
+                    )
 
     async def _cmd_add_channel(self, channel_name: str, tags: Optional[List[str]] = None) -> None:
         """
@@ -365,6 +453,9 @@ class AsyncContentProcessor(BaseProcessor):
         """
         Trigger content searches for channels matching the given tags.
 
+        All jobs from one command share a batch ID, and the queue is sorted once
+        every job has reported back as done.
+
         Args:
             tags (List[str]): Tags to filter channels by.
         """
@@ -372,6 +463,9 @@ class AsyncContentProcessor(BaseProcessor):
             tags = [tag for tag in tags if tag.isalpha()]
         else:
             tags = [""]
+
+        batch_id = uuid4().hex
+        jobs = 0
 
         for tag in tags:
             now = datetime.now()
@@ -393,9 +487,13 @@ class AsyncContentProcessor(BaseProcessor):
 
             channels = await self._db.get_channels(tag=tag)
             for channel in channels:
-                await self._job_queue.send({**channel, "type": "content"})
+                await self._job_queue.send({**channel, "type": "content", "batch_id": batch_id})
+                jobs += 1
 
             self._sio.data.update_last_content_pull(now, tag=tag)
+
+        if jobs:
+            self._sio.data.start_content_batch(batch_id, jobs)
 
     async def _cmd_random(self, size: int, word: bool) -> None:
         """

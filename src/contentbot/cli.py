@@ -147,10 +147,12 @@ async def run_worker(cfg: Dict) -> int:
 
     try:
         async for msg in job_consumer.consume():
+            batch_id = None
             try:
                 job = json.loads(msg.body)
                 # Jobs queued before the type field was added are identified by their keys.
                 job_type = job.get("type")
+                batch_id = job.get("batch_id")
 
                 content = None
                 if job_type == "sort_queue":
@@ -165,11 +167,7 @@ async def run_worker(cfg: Dict) -> int:
                     if random_content:
                         await db.mark_random_video(random_content["video_id"])
 
-                if not content:
-                    await job_consumer.commit(msg)
-                    continue
-
-                for c in content:
+                for c in content or []:
                     await result_producer.send(c)
 
                 await job_consumer.commit(msg)
@@ -178,6 +176,14 @@ async def run_worker(cfg: Dict) -> int:
             except Exception as err:
                 logger.exception("Unhandled exception: %s", err)
                 await msg.nack(requeue=False)
+
+            # Sent after the results, including for empty and failed jobs, so the
+            # chatbot knows when every job in the batch is done and can sort the queue.
+            if batch_id:
+                try:
+                    await result_producer.send({"type": "job_done", "batch_id": batch_id})
+                except Exception:
+                    logger.exception("Failed to report job done for batch %s", batch_id)
     finally:
         await job_consumer.stop()
         await result_producer.stop()

@@ -135,6 +135,7 @@ class AsyncSocket:
     async def request_playlist(self, timeout: float = 5.0) -> Optional[List[Dict]]:
         """Request the current Cytube playlist and await the response."""
         self._playlist_future = asyncio.get_running_loop().create_future()
+        self.data.last_playlist_request = datetime.now()
         await self._client.emit("requestPlaylist")
 
         try:
