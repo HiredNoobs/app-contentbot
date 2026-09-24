@@ -202,27 +202,6 @@ class TestSIOData:
         assert data.get_last_content_pull() == now
         assert data.get_last_content_pull(tag="all") == now
 
-    def test_content_batch_finishes_after_last_job(self):
-        data = SIOData()
-        data.start_content_batch("b", jobs=2)
-
-        assert data.complete_content_job("b") is False
-        assert data.complete_content_job("b") is True
-        # Finished batches are no longer tracked.
-        assert data.complete_content_job("b") is False
-
-    def test_content_batches_tracked_separately(self):
-        data = SIOData()
-        data.start_content_batch("a", jobs=1)
-        data.start_content_batch("b", jobs=2)
-
-        assert data.complete_content_job("b") is False
-        assert data.complete_content_job("a") is True
-        assert data.complete_content_job("b") is True
-
-    def test_content_batch_unknown_id_ignored(self):
-        assert SIOData().complete_content_job("missing") is False
-
     # ------------------------------------------------------------------
     # Playlist
     # ------------------------------------------------------------------

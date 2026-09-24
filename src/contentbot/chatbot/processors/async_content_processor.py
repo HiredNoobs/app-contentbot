@@ -266,19 +266,18 @@ class AsyncContentProcessor(BaseProcessor):
         finally:
             self._sio.data.remove_pending(video_id)
 
-    async def handle_job_done(self, msg: IncomingMessage) -> None:
+    async def handle_batch_done(self, msg: IncomingMessage) -> None:
         """
-        Handle a worker reporting that a content job has finished,
-        sorting the queue if it was the last job of its batch.
+        Handle a worker reporting that every job of a content batch has finished by sorting the queue.
 
-        The worker sends job_done after the job's results, and the result consumer's
-        prefetch_count of 1 means a message isn't delivered until every message before it
-        is acked or nacked. Content results are only settled once Cytube responds (and
-        requeued results go back ahead of this message), so by now all of the job's
-        videos have been added. Raising the prefetch count would break this.
+        The worker finishing the batch's last job sends batch_done after every job's results
+        have been published, and the result consumer's prefetch_count of 1 means a message
+        isn't delivered until every message before it is acked or nacked. Content results are
+        only settled once Cytube responds (and requeued results go back ahead of this message),
+        so by now all of the batch's videos have been added. Raising the prefetch count would
+        break this.
 
-        If a job_done is never received, e.g. the worker died, the batch never finishes
-        and the queue has to be sorted manually.
+        If batch_done is never sent, e.g. a worker died mid-job, the queue has to be sorted manually.
 
         Args:
             msg (IncomingMessage): RabbitMQ message containing the batch ID.
@@ -286,10 +285,8 @@ class AsyncContentProcessor(BaseProcessor):
         result = json.loads(msg.body)
         await msg.ack()
 
-        batch_id = result.get("batch_id")
-        if batch_id and self._sio.data.complete_content_job(batch_id):
-            logger.info("Content batch %s finished.", batch_id)
-            self._schedule_sort()
+        logger.info("Content batch %s finished.", result.get("batch_id"))
+        self._schedule_sort()
 
     # -----------------------------------------------------
     # Command handlers
@@ -453,8 +450,8 @@ class AsyncContentProcessor(BaseProcessor):
         """
         Trigger content searches for channels matching the given tags.
 
-        All jobs from one command share a batch ID, and the queue is sorted once
-        every job has reported back as done.
+        All jobs from one command form a single batch, and the queue is sorted once
+        the worker reports that every job in the batch has finished.
 
         Args:
             tags (List[str]): Tags to filter channels by.
@@ -464,8 +461,7 @@ class AsyncContentProcessor(BaseProcessor):
         else:
             tags = [""]
 
-        batch_id = uuid4().hex
-        jobs = 0
+        jobs: List[Dict] = []
 
         for tag in tags:
             now = datetime.now()
@@ -486,14 +482,14 @@ class AsyncContentProcessor(BaseProcessor):
                 await self._sio.send_chat_msg("Pulling content...")
 
             channels = await self._db.get_channels(tag=tag)
-            for channel in channels:
-                await self._job_queue.send({**channel, "type": "content", "batch_id": batch_id})
-                jobs += 1
+            jobs.extend({**channel, "type": "content"} for channel in channels)
 
             self._sio.data.update_last_content_pull(now, tag=tag)
 
-        if jobs:
-            self._sio.data.start_content_batch(batch_id, jobs)
+        # The batch size and job index let the workers work out which job finishes the batch.
+        batch_id = uuid4().hex
+        for index, job in enumerate(jobs):
+            await self._job_queue.send({**job, "batch_id": batch_id, "batch_size": len(jobs), "job_index": index})
 
     async def _cmd_random(self, size: int, word: bool) -> None:
         """

@@ -11,6 +11,7 @@ from contentbot.common.utils.api_query import query_endpoint
 logger: logging.Logger = logging.getLogger("contentbot")
 
 VIDEO_PUBLISH_TIME_TTL = int(timedelta(days=30).total_seconds())
+CONTENT_BATCH_TTL = int(timedelta(days=1).total_seconds())
 
 
 class AsyncRedisDB:
@@ -97,6 +98,19 @@ class AsyncRedisDB:
             str: Redis key for the random video flag.
         """
         return f"{video_id}@youtube.video.random"
+
+    @staticmethod
+    def _make_content_batch_key(batch_id: str) -> str:
+        """
+        Construct the Redis key used to track the finished jobs of a content batch.
+
+        Args:
+            batch_id (str): Content batch ID.
+
+        Returns:
+            str: Redis key for the batch.
+        """
+        return f"{batch_id}@contentbot.batch"
 
     # -----------------------------------------------------
     # General Redis methods
@@ -413,3 +427,31 @@ class AsyncRedisDB:
             bool: True if the video is flagged as random, otherwise False.
         """
         return await self._redis.exists(self._make_random_video_key(video_id)) > 0
+
+    # -----------------------------------------------------
+    # Content batch methods
+    # -----------------------------------------------------
+
+    async def complete_batch_job(self, batch_id: str, job_index: int, batch_size: int) -> bool:
+        """
+        Record a finished job of a content batch.
+
+        Jobs are recorded by index in a set, so a redelivered job isn't counted twice,
+        and in a transaction, so only one worker sees the batch finish.
+
+        Args:
+            batch_id (str): Content batch ID.
+            job_index (int): Index of the job within the batch.
+            batch_size (int): Number of jobs in the batch.
+
+        Returns:
+            bool: True if this job finished the batch.
+        """
+        key = self._make_content_batch_key(batch_id)
+        async with self._redis.pipeline(transaction=True) as pipe:
+            pipe.sadd(key, job_index)
+            pipe.scard(key)
+            pipe.expire(key, CONTENT_BATCH_TTL)
+            added, finished, _ = await pipe.execute()
+
+        return bool(added) and finished >= batch_size

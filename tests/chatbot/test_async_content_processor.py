@@ -80,52 +80,41 @@ async def settle(processor):
     await asyncio.gather(*processor._tasks)
 
 
-async def run_content_command(processor, job_queue):
-    await processor._handle_command("mod", "content", [])
-    return job_queue.sent[0]["batch_id"]
-
-
-async def job_done(processor, batch_id):
-    msg = FakeMessage({"type": "job_done", "batch_id": batch_id})
-    await processor.handle_job_done(msg)
+async def batch_done(processor, batch_id="batch"):
+    msg = FakeMessage({"type": "batch_done", "batch_id": batch_id})
+    await processor.handle_batch_done(msg)
     return msg
 
 
 async def test_content_command_sends_jobs_in_one_batch(processor, job_queue):
-    batch_id = await run_content_command(processor, job_queue)
+    await processor._handle_command("mod", "content", [])
 
-    assert len(job_queue.sent) == 2
-    assert all(job["batch_id"] == batch_id for job in job_queue.sent)
+    assert len({job["batch_id"] for job in job_queue.sent}) == 1
+    assert [job["job_index"] for job in job_queue.sent] == [0, 1]
+    assert all(job["batch_size"] == 2 for job in job_queue.sent)
 
 
-async def test_content_command_without_channels_starts_no_batch(sio, job_queue):
+async def test_content_command_batch_covers_every_tag(processor, job_queue):
+    await processor._handle_command("mod", "content", ["music", "news"])
+
+    assert len({job["batch_id"] for job in job_queue.sent}) == 1
+    assert [job["job_index"] for job in job_queue.sent] == [0, 1, 2, 3]
+    assert all(job["batch_size"] == 4 for job in job_queue.sent)
+
+
+async def test_content_command_without_channels_sends_nothing(sio, job_queue):
     processor = AsyncContentProcessor(sio, FakeDB([]), job_queue)
     await processor._handle_command("mod", "content", [])
 
-    assert sio.data._content_batches == {}
+    assert job_queue.sent == []
 
 
-async def test_sorts_after_last_job_done(processor, job_queue):
-    batch_id = await run_content_command(processor, job_queue)
-
-    msg = await job_done(processor, batch_id)
+async def test_batch_done_sorts_queue(processor, job_queue):
+    msg = await batch_done(processor)
     await settle(processor)
+
     assert msg.acked
-    assert job_queue.sort_jobs() == []
-
-    await job_done(processor, batch_id)
-    await settle(processor)
-
     assert len(job_queue.sort_jobs()) == 1
-
-
-async def test_job_done_for_unknown_batch_ignored(processor, job_queue):
-    # e.g. the chatbot restarted after sending the jobs.
-    msg = await job_done(processor, "unknown")
-    await settle(processor)
-
-    assert msg.acked
-    assert job_queue.sort_jobs() == []
 
 
 async def test_sort_waits_for_playlist_cooldown(processor, sio, job_queue, monkeypatch):
@@ -137,9 +126,7 @@ async def test_sort_waits_for_playlist_cooldown(processor, sio, job_queue, monke
     monkeypatch.setattr(async_content_processor.asyncio, "sleep", fake_sleep)
     sio.data.last_playlist_request = datetime.now() - timedelta(seconds=45)
 
-    batch_id = await run_content_command(processor, job_queue)
-    await job_done(processor, batch_id)
-    await job_done(processor, batch_id)
+    await batch_done(processor)
     await settle(processor)
 
     assert any(14 < delay <= 15 for delay in sleeps)

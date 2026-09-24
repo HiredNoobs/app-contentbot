@@ -24,8 +24,6 @@ class SIOData:
     _users: Dict[str, int] = field(default_factory=dict)
     _pending: Dict[str, IncomingMessage] = field(default_factory=dict)
     _last_content_pull: Dict[str, datetime] = field(default_factory=dict)
-    # Number of unfinished worker jobs for each content command, keyed by batch ID.
-    _content_batches: Dict[str, int] = field(default_factory=dict)
     _last_playlist_request: Optional[datetime] = None
     _playlist_request_cooldown: int = 60
 
@@ -245,36 +243,6 @@ class SIOData:
         if tag is None:
             tag = "all"
         self._last_content_pull[tag] = new_dt
-
-    def start_content_batch(self, batch_id: str, jobs: int) -> None:
-        """
-        Start tracking the jobs sent for a content command.
-
-        Args:
-            batch_id (str): Batch ID attached to each job.
-            jobs (int): Number of jobs sent to the worker.
-        """
-        self._content_batches[batch_id] = jobs
-
-    def complete_content_job(self, batch_id: str) -> bool:
-        """
-        Record a finished worker job.
-
-        Args:
-            batch_id (str): Batch ID of the job.
-
-        Returns:
-            bool: True if this was the batch's last job, the batch is then no longer tracked.
-        """
-        if batch_id not in self._content_batches:
-            return False
-
-        self._content_batches[batch_id] -= 1
-        if self._content_batches[batch_id] > 0:
-            return False
-
-        del self._content_batches[batch_id]
-        return True
 
     # ------------------------------------------------------------------
     # Playlist

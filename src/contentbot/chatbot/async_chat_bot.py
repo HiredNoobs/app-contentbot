@@ -263,8 +263,8 @@ class AsyncChatBot:
                 await self._content_processor.handle_queue_sort(msg)
                 continue
 
-            if result.get("type") == "job_done":
-                await self._content_processor.handle_job_done(msg)
+            if result.get("type") == "batch_done":
+                await self._content_processor.handle_batch_done(msg)
                 continue
 
             await self._content_processor.handle_new_content(msg)
