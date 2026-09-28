@@ -154,3 +154,28 @@ async def test_manual_sort_during_cooldown_reports_delay(processor, sio):
 
     for task in processor._tasks:
         task.cancel()
+
+
+async def test_premiere_queue_fail_is_dropped(processor, sio):
+    msg = FakeMessage({})
+    sio.data.add_pending("8_PB3zILX9Y", msg)
+
+    await processor.handle_failed_queue(
+        {
+            "msg": "Cannot read properties of undefined &#40;reading &#39;match&#39;&#41;",
+            "link": "https://youtu.be/8_PB3zILX9Y",
+            "id": "8_PB3zILX9Y",
+        }
+    )
+
+    assert msg.nacked_with is False
+    assert sio.data.get_pending("8_PB3zILX9Y") is None
+
+
+async def test_unknown_queue_fail_is_requeued(processor, sio):
+    msg = FakeMessage({})
+    sio.data.add_pending("vid1", msg)
+
+    await processor.handle_failed_queue({"msg": "Something else went wrong", "id": "vid1"})
+
+    assert msg.nacked_with is True

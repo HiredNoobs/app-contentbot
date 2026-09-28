@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import logging
 import math
@@ -23,6 +24,8 @@ ACCEPTABLE_ERRORS = {
     "Cannot add age restricted videos. See: https://github.com/calzoneman/sync/wiki/Frequently-Asked-Questions#why-dont-age-restricted-youtube-videos-work",  # noqa: E501
     "The uploader has made this video non-embeddable",
     "This video has not been processed yet.",
+    # Premieres: YouTube omits the duration until the premiere has aired.
+    "Cannot read properties of undefined (reading 'match')",
 }
 
 # This should match both channel names and channel IDs
@@ -254,7 +257,8 @@ class AsyncContentProcessor(BaseProcessor):
 
         try:
             logger.debug("Nacking RabbitMQ message for failed video %s", video_id)
-            if data["msg"] in ACCEPTABLE_ERRORS:
+            # Cytube HTML escapes media lookup errors, e.g. "(" as "&#40;".
+            if html.unescape(data["msg"]) in ACCEPTABLE_ERRORS:
                 await msg.nack(requeue=False)
             elif data["msg"] == "You are adding videos too quickly":
                 self._sio.data.increase_backoff()
