@@ -1,10 +1,14 @@
 name: Tests
 
+# Every branch, pull requests, and the release workflow (workflow_call) before it builds an image.
 on:
   push:
-    branches: [ master ]
+    branches: ["**"]
   pull_request:
-    branches: [ master ]
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -16,12 +20,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Install system dependencies
         run: |
@@ -29,14 +37,6 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             gcc \
             build-essential
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-py${{ matrix.python-version }}-pip-
 
       - name: Install project with dev extras
         run: |
@@ -64,4 +64,3 @@ jobs:
       - name: Run black
         run: |
           black --check --diff src/contentbot tests
-
