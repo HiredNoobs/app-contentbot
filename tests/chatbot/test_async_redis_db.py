@@ -1,4 +1,5 @@
 import pytest
+from redis.asyncio.sentinel import SentinelConnectionPool, SentinelManagedSSLConnection
 
 from contentbot.chatbot.db.async_redis_db import CONTENT_BATCH_TTL, AsyncRedisDB
 
@@ -86,3 +87,44 @@ async def test_complete_batch_job_sets_expiry(db):
     await db.complete_batch_job("b", 0, 2)
 
     assert db._redis.ttls == {db._make_content_batch_key("b"): CONTENT_BATCH_TTL}
+
+
+def test_direct_connection_without_sentinels():
+    db = AsyncRedisDB("redis.example", 6379, 2, "user", "pass", "ca.crt", "tls.crt", "tls.key")
+
+    kwargs = db._redis.connection_pool.connection_kwargs
+    assert db._sentinel is None
+    assert (kwargs["host"], kwargs["port"], kwargs["db"]) == ("redis.example", 6379, 2)
+    assert (kwargs["username"], kwargs["password"]) == ("user", "pass")
+    assert kwargs["ssl_ca_certs"] == "ca.crt"
+
+
+def test_master_from_sentinels():
+    """The sentinels and the master are both reached over TLS, with the same credentials."""
+    db = AsyncRedisDB(
+        None,
+        None,
+        2,
+        "user",
+        "pass",
+        "ca.crt",
+        "tls.crt",
+        "tls.key",
+        sentinels=[("sentinel.example", 26379)],
+        sentinel_master="mymaster",
+    )
+
+    pool = db._redis.connection_pool
+    assert isinstance(pool, SentinelConnectionPool)
+    assert pool.service_name == "mymaster"
+    assert pool.connection_class is SentinelManagedSSLConnection
+    assert pool.connection_kwargs["db"] == 2
+    assert (pool.connection_kwargs["username"], pool.connection_kwargs["password"]) == ("user", "pass")
+    assert pool.connection_kwargs["ssl_certfile"] == "tls.crt"
+
+    (sentinel,) = db._sentinel.sentinels
+    kwargs = sentinel.connection_pool.connection_kwargs
+    assert (kwargs["host"], kwargs["port"]) == ("sentinel.example", 26379)
+    assert (kwargs["username"], kwargs["password"]) == ("user", "pass")
+    assert sentinel.connection_pool.connection_class.__name__ == "SSLConnection"
+    assert kwargs["ssl_ca_certs"] == "ca.crt"

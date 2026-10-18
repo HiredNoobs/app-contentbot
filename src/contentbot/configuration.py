@@ -60,11 +60,24 @@ class Configuration:
         self.cytube_url = config["cytube_url"]
         self.cytube_channel = config["cytube_channel"]
 
-        # Database
-        db_host = config["db_host"]
-        self.db_host = f"{db_host}.{self._domain}" if self._domain else db_host
-        self.db_port = config["db_port"]
+        # Database: Redis itself (db_host, db_port), or the sentinels watching it
+        # (db_sentinels, "host:port" each, and the master's name, db_sentinel_master), which
+        # are used instead when set.
+        db_host = config.get("db_host")
+        self.db_host = self._with_domain(db_host) if db_host else None
+        self.db_port = config.get("db_port")
         self.db_index = config["db_index"]
+
+        self.db_sentinels = []
+        for sentinel in config.get("db_sentinels") or []:
+            host, _, port = str(sentinel).rpartition(":")
+            if not host or not port.isdigit():
+                raise ConfigurationError(f"db_sentinels: {sentinel!r} isn't host:port.")
+            self.db_sentinels.append((self._with_domain(host), int(port)))
+        self.db_sentinel_master = config.get("db_sentinel_master", "redis")
+
+        if not self.db_sentinels and not (self.db_host and self.db_port):
+            raise ConfigurationError("Set db_host and db_port, or db_sentinels.")
 
         self.db_ca_cert = config.get("db_ca_cert")
         self.db_cert = config.get("db_cert")
@@ -80,6 +93,10 @@ class Configuration:
         self.rabbitmq_ca_cert = config.get("rabbitmq_ca_cert")
         self.rabbitmq_cert = config.get("rabbitmq_cert")
         self.rabbitmq_key = config.get("rabbitmq_key")
+
+    def _with_domain(self, host: str) -> str:
+        """The host with the DOMAIN override appended, if one is set."""
+        return f"{host}.{self._domain}" if self._domain else host
 
     def _read_secrets_conf(self) -> None:
         """Read and parse the secrets configuration file."""

@@ -76,6 +76,8 @@ async def run_chatbot(cfg: Dict) -> int:
         cfg["db_ca_cert"],
         cfg["db_cert"],
         cfg["db_key"],
+        sentinels=cfg["db_sentinels"],
+        sentinel_master=cfg["db_sentinel_master"],
     )
 
     rabbit_ssl = create_ssl_context(cfg["rabbitmq_ca_cert"], cfg["rabbitmq_cert"], cfg["rabbitmq_key"])
@@ -132,6 +134,8 @@ async def run_worker(cfg: Dict) -> int:
         cfg["db_ca_cert"],
         cfg["db_cert"],
         cfg["db_key"],
+        sentinels=cfg["db_sentinels"],
+        sentinel_master=cfg["db_sentinel_master"],
     )
 
     rabbit_ssl = create_ssl_context(cfg["rabbitmq_ca_cert"], cfg["rabbitmq_cert"], cfg["rabbitmq_key"])

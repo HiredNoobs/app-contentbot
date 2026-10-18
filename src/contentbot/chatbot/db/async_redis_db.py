@@ -1,10 +1,11 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import redis.asyncio as redis
 from bs4 import BeautifulSoup as bs
+from redis.asyncio.sentinel import Sentinel
 
 from contentbot.common.utils.api_query import query_endpoint
 
@@ -21,40 +22,64 @@ class AsyncRedisDB:
 
     def __init__(
         self,
-        host: str,
-        port: int,
+        host: Optional[str],
+        port: Optional[int],
         index: int,
         username: str,
         password: str,
         ca_cert: Optional[str],
         cert: Optional[str],
         key: Optional[str],
+        sentinels: Optional[Sequence[Tuple[str, int]]] = None,
+        sentinel_master: str = "redis",
     ) -> None:
         """
         Initialise the Redis connection with SSL authentication.
 
+        With sentinels, the master's address is asked from them (and again after a
+        failover) instead of using host and port. The sentinels are reached with the same
+        certificates and credentials as Redis.
+
         Args:
-            host (str): Redis host address.
-            port (int): Redis port number.
+            host (Optional[str]): Redis host address, unused with sentinels.
+            port (Optional[int]): Redis port number, unused with sentinels.
             index (int): Redis database index.
             username (str): Redis username.
             password (str): Redis password.
             ca_cert (Optional[str]): Path to CA certificate.
             cert (Optiona[str]): Path to client certificate.
             key (Optional[str]): Path to client key file.
+            sentinels (Optional[Sequence[Tuple[str, int]]]): Sentinel (host, port) pairs.
+            sentinel_master (str): The master's name in Sentinel.
         """
-        self._redis = redis.Redis(
-            host=host,
-            port=port,
-            db=index,
-            username=username,
-            password=password,
-            decode_responses=True,
-            ssl=True,
-            ssl_ca_certs=ca_cert,
-            ssl_certfile=cert,
-            ssl_keyfile=key,
-        )
+        self._sentinel: Optional[Sentinel] = None
+        if sentinels:
+            tls = {"ssl": True, "ssl_ca_certs": ca_cert, "ssl_certfile": cert, "ssl_keyfile": key}
+            self._sentinel = Sentinel(
+                list(sentinels),
+                sentinel_kwargs={"username": username, "password": password, **tls},
+                **tls,
+            )
+            self._redis = self._sentinel.master_for(
+                sentinel_master,
+                db=index,
+                username=username,
+                password=password,
+                decode_responses=True,
+            )
+        else:
+            self._redis = redis.Redis(
+                host=host or "localhost",
+                port=port or 6379,
+                db=index,
+                username=username,
+                password=password,
+                decode_responses=True,
+                ssl=True,
+                ssl_ca_certs=ca_cert,
+                ssl_certfile=cert,
+                ssl_keyfile=key,
+            )
 
     # -----------------------------------------------------
     # Static methods
@@ -117,8 +142,11 @@ class AsyncRedisDB:
     # -----------------------------------------------------
 
     async def close(self) -> None:
-        """Close the Redis connection."""
+        """Close the Redis connection, and the sentinels' if there are any."""
         await self._redis.close()
+        if self._sentinel:
+            for sentinel in self._sentinel.sentinels:
+                await sentinel.close()
 
     # -----------------------------------------------------
     # Content methods

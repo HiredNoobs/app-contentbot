@@ -4,6 +4,7 @@ import pytest
 import yaml
 
 from contentbot.configuration import Configuration
+from contentbot.exceptions import ConfigurationError
 
 
 @pytest.fixture
@@ -120,3 +121,66 @@ class TestConfiguration:
         cfg.read()
 
         assert cfg.rabbitmq_url == "amqps://rmq%40user:p%40ss%3Aw%2Frd%231@rabbit:5671/"
+
+
+def _config_with(config_file, **changes):
+    """A copy of config_file's data with keys changed (None removes one)."""
+    with open(config_file) as f:
+        data = yaml.safe_load(f)
+    for key, value in changes.items():
+        if value is None:
+            data.pop(key, None)
+        else:
+            data[key] = value
+    with tempfile.NamedTemporaryFile("w", delete=False) as f:
+        yaml.dump(data, f)
+        return f.name
+
+
+class TestSentinelConfiguration:
+    def test_no_sentinels_by_default(self, config_file, secrets_file):
+        cfg = Configuration(config_file, secrets_file)
+        cfg.read()
+
+        assert cfg.db_sentinels == []
+        assert cfg.db_sentinel_master == "redis"
+
+    def test_sentinels_without_db_host(self, config_file, secrets_file, monkeypatch):
+        """Sentinels replace db_host and db_port, which can then be left out."""
+        monkeypatch.delenv("DOMAIN", raising=False)
+        path = _config_with(
+            config_file,
+            db_host=None,
+            db_port=None,
+            db_sentinels=["redis-sentinel.redis.svc:26379", "10.0.0.1:26380"],
+            db_sentinel_master="mymaster",
+        )
+
+        cfg = Configuration(path, secrets_file)
+        cfg.read()
+
+        assert cfg.db_host is None
+        assert cfg.db_sentinels == [("redis-sentinel.redis.svc", 26379), ("10.0.0.1", 26380)]
+        assert cfg.db_sentinel_master == "mymaster"
+
+    def test_sentinels_with_domain(self, config_file, secrets_file, monkeypatch):
+        monkeypatch.setenv("DOMAIN", "example.net")
+        path = _config_with(config_file, db_sentinels=["sentinel:26379"])
+
+        cfg = Configuration(path, secrets_file)
+        cfg.read()
+
+        assert cfg.db_sentinels == [("sentinel.example.net", 26379)]
+
+    @pytest.mark.parametrize("sentinel", ["sentinel", "sentinel:", ":26379", "sentinel:port"])
+    def test_sentinel_must_be_host_and_port(self, config_file, secrets_file, sentinel):
+        path = _config_with(config_file, db_sentinels=[sentinel])
+
+        with pytest.raises(ConfigurationError):
+            Configuration(path, secrets_file).read()
+
+    def test_needs_db_host_or_sentinels(self, config_file, secrets_file):
+        path = _config_with(config_file, db_host=None)
+
+        with pytest.raises(ConfigurationError):
+            Configuration(path, secrets_file).read()
