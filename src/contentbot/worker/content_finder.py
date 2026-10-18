@@ -54,8 +54,7 @@ class ContentFinder:
             published_str = self._get_text_from_tag(entry, "published")
             published = datetime.fromisoformat(published_str)
 
-            if published < dt or published == dt:
-                logger.info(f"No more new videos for {name}")
+            if published <= dt:
                 break
 
             title = self._get_text_from_tag(entry, "title").lower()
@@ -73,6 +72,7 @@ class ContentFinder:
                     }
                 )
 
+        logger.info(f"Found {len(content)} new videos for {name}")
         return content
 
     def _get_text_from_tag(self, tag: element.Tag, target: str) -> str:
