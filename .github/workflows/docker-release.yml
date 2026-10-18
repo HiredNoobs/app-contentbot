@@ -1,13 +1,14 @@
 name: Release Docker Image
 
-# A version tag (e.g. 0.0.95) builds and pushes hirednoobs/contentbot:<tag>, after the tests pass.
-# The Docker Hub credentials are secrets of the release environment, which only tags matching
-# the pattern below can deploy to; who can create those tags is set by the repository's tag
-# ruleset.
+# A version tag (e.g. 4.0.0, or 4.0.0-rc1 for a release candidate) builds and pushes
+# hirednoobs/contentbot:<tag>, after the tests pass. The Docker Hub credentials are secrets of the
+# release environment, which only tags matching the patterns below can deploy to; who can create
+# those tags is set by the repository's tag ruleset.
 on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
 
 permissions:
   contents: read
