@@ -1,0 +1,18 @@
+# Only what pip install . needs (pyproject.toml, README.md, src/) goes into the build.
+.git
+.github
+.mypy_cache
+.pytest_cache
+.venv
+venv
+htmlcov
+.coverage
+build
+dist
+**/__pycache__
+**/*.egg-info
+tests
+channels*.json
+build.sh
+Dockerfile
+.dockerignore
