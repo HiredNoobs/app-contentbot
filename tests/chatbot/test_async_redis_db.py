@@ -1,7 +1,11 @@
 import pytest
 from redis.asyncio.sentinel import SentinelConnectionPool, SentinelManagedSSLConnection
 
-from contentbot.chatbot.db.async_redis_db import CONTENT_BATCH_TTL, VIDEO_PUBLISH_TIME_TTL, AsyncRedisDB
+from contentbot.chatbot.db.async_redis_db import (
+    CONTENT_BATCH_TTL,
+    VIDEO_PUBLISH_TIME_TTL,
+    AsyncRedisDB,
+)
 
 
 class FakePipeline:
