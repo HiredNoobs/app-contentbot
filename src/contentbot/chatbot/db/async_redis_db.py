@@ -403,13 +403,15 @@ class AsyncRedisDB:
         """
         Get the cached publish time for a video.
 
+        Reading the key resets its expiry, so it lasts as long as the video stays in the queue.
+
         Args:
             video_id (str): YouTube video ID.
 
         Returns:
             Optional[str]: ISO8601 publish time if cached, otherwise None.
         """
-        raw = await self._redis.get(self._make_video_publish_time_key(video_id))
+        raw = await self._redis.getex(self._make_video_publish_time_key(video_id), ex=VIDEO_PUBLISH_TIME_TTL)
         return raw if isinstance(raw, str) else None
 
     async def set_video_publish_time(self, video_id: str, published: str) -> None:
@@ -448,13 +450,15 @@ class AsyncRedisDB:
         """
         Check whether a video was found by the random commands.
 
+        Checking the flag resets its expiry, so it lasts as long as the video stays in the queue.
+
         Args:
             video_id (str): YouTube video ID.
 
         Returns:
             bool: True if the video is flagged as random, otherwise False.
         """
-        return await self._redis.exists(self._make_random_video_key(video_id)) > 0
+        return bool(await self._redis.expire(self._make_random_video_key(video_id), VIDEO_PUBLISH_TIME_TTL))
 
     # -----------------------------------------------------
     # Content batch methods

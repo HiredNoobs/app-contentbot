@@ -1,7 +1,7 @@
 import pytest
 from redis.asyncio.sentinel import SentinelConnectionPool, SentinelManagedSSLConnection
 
-from contentbot.chatbot.db.async_redis_db import CONTENT_BATCH_TTL, AsyncRedisDB
+from contentbot.chatbot.db.async_redis_db import CONTENT_BATCH_TTL, VIDEO_PUBLISH_TIME_TTL, AsyncRedisDB
 
 
 class FakePipeline:
@@ -45,10 +45,26 @@ class FakePipeline:
 class FakeRedis:
     def __init__(self):
         self.sets = {}
+        self.values = {}
         self.ttls = {}
 
     def pipeline(self, transaction=True):
         return FakePipeline(self)
+
+    async def set(self, key, value, ex=None):
+        self.values[key] = str(value)
+        self.ttls[key] = ex
+
+    async def getex(self, key, ex=None):
+        if key in self.values:
+            self.ttls[key] = ex
+        return self.values.get(key)
+
+    async def expire(self, key, ttl):
+        if key not in self.values:
+            return False
+        self.ttls[key] = ttl
+        return True
 
 
 @pytest.fixture
@@ -87,6 +103,34 @@ async def test_complete_batch_job_sets_expiry(db):
     await db.complete_batch_job("b", 0, 2)
 
     assert db._redis.ttls == {db._make_content_batch_key("b"): CONTENT_BATCH_TTL}
+
+
+async def test_get_video_publish_time_refreshes_expiry(db):
+    key = db._make_video_publish_time_key("v")
+    await db.set_video_publish_time("v", "2026-01-01T00:00:00+00:00")
+    db._redis.ttls[key] = 60
+
+    assert await db.get_video_publish_time("v") == "2026-01-01T00:00:00+00:00"
+    assert db._redis.ttls[key] == VIDEO_PUBLISH_TIME_TTL
+
+
+async def test_get_video_publish_time_missing(db):
+    assert await db.get_video_publish_time("v") is None
+    assert db._redis.ttls == {}
+
+
+async def test_is_random_video_refreshes_expiry(db):
+    key = db._make_random_video_key("v")
+    await db.mark_random_video("v")
+    db._redis.ttls[key] = 60
+
+    assert await db.is_random_video("v") is True
+    assert db._redis.ttls[key] == VIDEO_PUBLISH_TIME_TTL
+
+
+async def test_is_random_video_missing(db):
+    assert await db.is_random_video("v") is False
+    assert db._redis.ttls == {}
 
 
 def test_direct_connection_without_sentinels():
