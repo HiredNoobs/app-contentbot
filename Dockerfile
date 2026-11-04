@@ -19,6 +19,8 @@ FROM ${PYTHON_IMAGE} AS prod-stage
 
 COPY --from=build-stage /usr/local /usr/local
 
+RUN mkdir -m 0755 /etc/contentbot
+
 # Downloaded files are 0600 by default, the contentbot user has to read it.
 ADD --checksum=sha256:39a4ead879cc8283de87f2ec58e7b4b340d6caa724db1b52a91dccf2f273c5e7 --chmod=0644 \
     https://github.com/dwyl/english-words/raw/20f5cc9b3f0ccc8ce45d814c532b7c2031bba31c/words.txt \

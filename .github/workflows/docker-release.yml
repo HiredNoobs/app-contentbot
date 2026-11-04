@@ -39,6 +39,12 @@ jobs:
         run: |
           docker build -t "hirednoobs/contentbot:${VERSION}" .
 
+      - name: Check the image
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          docker run --rm --entrypoint python "hirednoobs/contentbot:${VERSION}" -c "open('/etc/contentbot/eng_dict.txt').close()"
+
       # docker login straight from the secrets (no third-party action handles the token).
       - name: Log in to Docker Hub
         env:
